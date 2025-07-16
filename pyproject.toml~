@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=42.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+#[build-system]
+#requires = ["flit_core >=3.2,<4"]
+#build-backend = "flit_core.buildapi"
+
+#[project]
+#name = "M2_ProposalTools"
+#authors = [{name = "Charles", email = "charles.romero@gmail.com"}]
+#dynamic = ["version", "description"]
+
+[tool.pytest.ini_options]
+addopts = "--cov=M2_ProposalTools"
+testpaths = [
+    "tests",
+]
+
+[tool.mypy]
+mypy_path = "src"
+check_untyped_defs = true
+disallow_any_generics = true
+ignore_missing_imports = true
+no_implicit_optional = true
+show_error_codes = true
+strict_equality = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_configs = true
+no_implicit_reexport = true

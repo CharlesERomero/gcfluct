@@ -1,0 +1,8 @@
+astropy>=4.2.0
+scipy>=1.6.3
+numpy>=1.18
+matplotlib>=3.5.2
+reproject>=0.7
+emcee>=3.1.0
+corner>=2.0.0
+tqdm>=4.0.0

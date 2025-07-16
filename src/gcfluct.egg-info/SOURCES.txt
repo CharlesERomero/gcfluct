@@ -1,0 +1,11 @@
+LICENSE
+README.md
+pyproject.toml
+setup.cfg
+setup.py
+src/gcfluct.egg-info/PKG-INFO
+src/gcfluct.egg-info/SOURCES.txt
+src/gcfluct.egg-info/dependency_links.txt
+src/gcfluct.egg-info/not-zip-safe
+src/gcfluct.egg-info/requires.txt
+src/gcfluct.egg-info/top_level.txt

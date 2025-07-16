@@ -1,0 +1,38 @@
+Metadata-Version: 2.4
+Name: gcfluct
+Version: 0.1.0
+Summary: Simple start to analysing surface brightness fluctuations in galaxy clusters
+Author: Charles Romero
+License: MIT
+Platform: unix
+Platform: linux
+Platform: osx
+Platform: cygwin
+Platform: win32
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Requires-Python: >=3.5
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1
+Requires-Dist: astropy>=4
+Requires-Dist: scipy>=1.5
+Requires-Dist: matplotlib>=3.4.0
+Provides-Extra: testing
+Requires-Dist: pytest>=6.0; extra == "testing"
+Requires-Dist: pytest-cov>=2.0; extra == "testing"
+Requires-Dist: mypy>=0.910; extra == "testing"
+Requires-Dist: flake8>=3.9; extra == "testing"
+Requires-Dist: tox>=3.24; extra == "testing"
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: license-file
+
+# gcfluct
+Modules and Notebooks to be developed.
+
+![Tests](https://github.com/CharlesERomero/gcfluct/actions/workflows/tests.yml/badge.svg)
