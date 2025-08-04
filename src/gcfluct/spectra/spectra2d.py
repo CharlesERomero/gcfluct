@@ -1,10 +1,17 @@
+### Inter-package dependencies
 import numpy as np
-import utility_functions as uf
 import scipy.special as sps
+import astropy.units as u
+import warnings
+
+### Intra-package dependencies
+import gcfluct.utils.utility_functions as uf
+
+### For typing:
 from numpy.typing import NDArray, ArrayLike
 from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
-from astropy.units import Quantity
-import warnings
+#from astropy.units import Quantity
+from astropy.units import UnitBase
 
 class PSfromImages:
     """
@@ -29,7 +36,7 @@ class PSfromImages:
         Mask which defines bins by the integer values of the pixels.
     pixsize : np.floating
         The value of the pixel size in the appropriate units.
-    pixunits : Quantity
+    pixunits : UnitBase
         Units of the pixel size, as an astropy unit. Recommended to be set by user. Default is u.arcsec.
 
     
@@ -47,12 +54,12 @@ class PSfromImages:
     """
     
     def __init__(self,
-                 img,
-                 pixsize = 1.0,
-                 pixunits = None,
-                 center = None,
-                 intrinsic_mask = None,
-                 img2 = None):
+                 img: NDArray[np.floating],
+                 pixsize: np.floating = 1.0,
+                 pixunits: Optional[UnitBase] = None,
+                 center: Optional[ArrayLike] = None,
+                 intrinsic_mask: Optional[NDArray[np.floating]] = None,
+                 img2: Optional[NDArray[np.floating]] = None):
         """
 
 
@@ -62,7 +69,7 @@ class PSfromImages:
            The image upon which power spectra will be calculated.
         pixsize : np.floating
            The value of the pixel size in the appropriate units.
-        pixunits : Optional[Quantity]
+        pixunits : Optional[UnitBase]
            It is highly recommend to explicitly set this. Default None type becomes u.arcsec;
            user is warned.
         center : Optional[ArrayLike]
@@ -78,7 +85,7 @@ class PSfromImages:
 
         self._imsz = img.shape
         self.pixsize = pixsize
-        if isinstance(pixunits,Quantity):
+        if isinstance(pixunits,UnitBase):
             is_angle = pixunits.is_equivalent(u.deg)
             is_length = pixunits.is_equivalent(u.kpc)
             if is_angle or is_length:
@@ -89,11 +96,14 @@ class PSfromImages:
                 warnings.warn("No pixel units were input! Using u.arcsec; proceed with caution.")
                 self.pixunits = u.arcsec
             else:
+                print(pixunits)
+                import pdb;pdb.set_trace()
                 raise AttributeError("Pixel units must either be a length or angle.")
         self.mask_by_bin = None
         self.update_img(img,img2=img2)
         self.set_intrinsic_mask(intrinsic_mask)
         self.set_center(center=center)
+        self._set_xyrmat()
         self.set_wave_numbers()
     
     def update_img(self,
@@ -127,16 +137,14 @@ class PSfromImages:
             self.center  = [npix/2 for npix in self._imsz]
         else:
             self.center = center
-
-        self._set_xyrmat()
             
     def _set_xyrmat(self):
         """
         Sets matrices useful for gridding. 
         """
         
-        xvec=np.arange(self._imsz[0])
-        yvec=np.arange(self._imsz[1])
+        xvec=np.arange(self._imsz[0]) - self.center[0]
+        yvec=np.arange(self._imsz[1]) - self.center[1]
         self._xmat=np.repeat([xvec],self._imsz[1],axis=0).transpose()
         self._ymat=np.repeat([yvec],self._imsz[0],axis=0)
         self.rmat=np.sqrt( (self._xmat-self.center[0])**2+(self._ymat-self.center[1])**2)*self.pixsize
@@ -168,7 +176,7 @@ class PSfromImages:
         """
         Parameters
         ----------
-        annular_edges ArrayLike[np.floating]
+        annular_edges NDArray[np.floating] | Sequence[float]
            An array-like set of annular edges, in increasing order, defined by the radius.
         """
 
@@ -317,10 +325,10 @@ class PSfromImages:
             mask = this_mask * self.intrinsic_mask
             self.mask = mask.astype(np.float64)
             self._mybin = i # Bookkeeping, JIC; FFTs of masked images have associated bin number...
-            self._a12_2D_at_Bin(cross=cross)
+            self._a12_2D_at_bin(cross=cross)
             ### Now compute the Fourier transforms of the image(s) and mask.
 
-    def _a12_2D_at_Bin(self,cross=False):
+    def _a12_2D_at_bin(self,cross=False):
         """
         Computes the power at the wavenumbers (nodes) specified by attribute a12_kn. The resultant power spectrum
         is set to the attribute a12_pk.
@@ -390,7 +398,7 @@ class PSfromImages:
             delt1 = np.nan_to_num(np.divide(g1_i,g1_m))  - np.nan_to_num(np.divide(g2_i,g2_m))
             delt2 = np.nan_to_num(np.divide(g1_i2,g1_m)) - np.nan_to_num(np.divide(g2_i2,g2_m)) 
             df = delt1*delt2*self.mask # Arguably self.mask**2, but 1**2 = 1 and 0**2 = 0. So. Save some computation.
-        s2_kr = (self._n/self._m) * np.mean(Df) # A12 paper would use mean. 
+        s2_kr = (self._n/self._m) * np.mean(df) # A12 paper would use mean. 
 
         gamf   = np.pi # Can change for different dimensionality. But this function is specifically for 2D
         p_kr   = s2_kr /(eps**2 * gamf * self._k_r**2) # this is intrinsic PS(k)
@@ -404,7 +412,10 @@ class ImagesFromPS:
     n_pix : int
         The number of pixels on an image side. Image will be square.
     pixsize : np.floating
-        Value of the pixel size.
+        Value of the pixel size. Units are at the user discretion, but must match the (inverse) units of
+        the wavenumber values (kc, kdist, and k_arr).
+    pixunits : UnitBase
+        Units of the pixel size, as an astropy unit. Recommended to be set by user. Default is u.arcsec.
     slope : np.floating
         The slope of the underlying power-law in the spectrum. Respects the convention P(k) = P_0 k**slope.
     kc : np.floating
@@ -429,7 +440,7 @@ class ImagesFromPS:
     set_ps_parameters():
         Sets the parameters for a cannonical turbulent power spectrum.
     set_image_size():
-        Sets attributes n_pix and pixsize.
+        Sets attributes n_pix, pixsize, pixunits, and if desired center.
     set_minfactor():
         Sets a factor which governs the lowest k-value in
     get_parameterized_ps():
@@ -440,11 +451,14 @@ class ImagesFromPS:
         Set the seed for random number generator
     generate_realization():
         Generates a realization from the input power spectrum.
+    set_center():
+        Sets the center of an image. (Not necessary for many methods).
     """
 
     def __init__(self,
                  n_pix: int = 1024,
                  pixsize: np.floating = 1.0,
+                 pixunits : Optional[UnitBase] = None,
                  slope: np.floating = 0.0,
                  kc: np.floating = 1e-3,
                  p0: np.floating = 1e0,
@@ -452,7 +466,8 @@ class ImagesFromPS:
                  eta_c: np.floating = 4.0,
                  eta_d: np.floating = 1.5,
                  minfactor: np.floating = 1e2,
-                 seed = None):
+                 seed: Optional[Union[np.floating,int]] = None,
+                 no_warn: bool = False):
         """
         All wavenumber values (kc, kdis, k) should match those for the inverse of the units of pixsize.
         For example, if pixsize=1.0 means that each pixel is 1 kpc on a side, then the corresponding k-values
@@ -464,6 +479,9 @@ class ImagesFromPS:
             The number of pixels on an image side. Image will be square.
         pixsize : np.floating
             Value of the pixel size.
+        pixunits : Optional[UnitBase]
+           It is highly recommend to explicitly set this. Default None type becomes u.arcsec;
+           user is warned.
         slope : np.floating
             The slope of the underlying power-law in the spectrum. Respects the convention P(k) = P_0 k**slope.
         kc : np.floating
@@ -481,15 +499,17 @@ class ImagesFromPS:
         minfactor : np.floating
             If wavenumber array includes zero values, they will be reset to the minimum non-zero wavenumber
             divided by this value.
-        seed : Union[np.floating,int]
-            A seed for the random number generator, if desired.        
+        seed : Optional[Union[np.floating,int]]
+            A seed for the random number generator, if desired.
+        no_warn : bool
+            Ignore warnings. Default is False.
         """
 
         ### Corresponding to a paremeterized power spectrum
         self.set_ps_parameters(slope=slope,kc=kc,p0=p0,kdis=kdis,eta_c=eta_c,eta_d=eta_d)
 
         ### Corresponding to the map (image).
-        self.set_image_size(n_pix,pixsize)
+        self.set_image_size(n_pix,pixsize,no_warn=no_warn)
 
         ### To control for numerical accuracy
         self.set_minfactor(minfactor)
@@ -545,9 +565,11 @@ class ImagesFromPS:
         self._minfactor = minfactor # If min(k)==0, replace with smallest non-zero k divided by this factor        
         
     def set_image_size(self,
-                 n_pix: int = 1024,
-                 pixsize: np.floating = 1.0,
-                 ):
+                       n_pix: int = 1024,
+                       pixsize: np.floating = 1.0,
+                       pixunits: Optional[UnitBase] = None,
+                       center: Optional[ArrayLike] = None,
+                       no_warn: bool = False):
         """
 
         Parameters
@@ -556,18 +578,69 @@ class ImagesFromPS:
             The number of pixels on an image side. Image will be square.
         pixsize : np.floating
             Value of the pixel size.      
+        pixunits : Optional[UnitBase]
+           It is highly recommend to explicitly set this. Default None type becomes u.arcsec;
+           user is warned.
+        center : Optional[ArrayLike]
+           A two-element array-like object with center in pixel units, along axis 0 and axis 1,
+           respectively. If none set, takes the center of the image.
+        no_warn : bool
+           If True, then no warnings about pixunits. Default is False.
         """
 
         self.n_pix = n_pix
         self.pixsize = pixsize        
-        k,dkx,dky = get_freqarr_2d(n_pix, n_pix, pixsize, pixsize)
+        k,dkx,dky = uf.get_freqarr_2d(n_pix, n_pix, pixsize, pixsize)
+        self._imsz = k.shape
         kflat = k.flatten()
         gki = (kflat > 0)
         gk = kflat[gki]
         self._kflat = kflat
         self.k_arr = gk
         self._gki = gki
+        
+        if isinstance(pixunits,UnitBase):
+            is_angle = pixunits.is_equivalent(u.deg)
+            is_length = pixunits.is_equivalent(u.kpc)
+            if is_angle or is_length:
+                self.pixunits = pixunits
+        else:
+            if pixunits is None:
+                # Maybe the user is just playing around and doesn't care about units.
+                if not no_warn:
+                    warnings.warn("No pixel units were input! Using u.arcsec; proceed with caution.")
+                self.pixunits = u.arcsec
+            else:
+                raise AttributeError("Pixel units must either be a length or angle.")
 
+        self.set_center(center)
+        self._set_xyrmat()
+            
+    def set_center(self,center: Optional[ArrayLike] = None):
+        """
+        Parameters
+        ----------
+        center : Optional[ArrayLike]
+           A two-element array-like object with center in pixel units, along axis 0 and axis 1,
+           respectively. If none set, takes the center of the image.
+        """
+        
+        if center is None:
+            self.center  = [npix/2 for npix in self._imsz]
+        else:
+            self.center = center
+            
+    def _set_xyrmat(self):
+        """
+        Sets matrices useful for gridding. 
+        """
+        
+        xvec=np.arange(self._imsz[0]) - self.center[0]
+        yvec=np.arange(self._imsz[1]) - self.center[1]
+        self._xmat=np.repeat([xvec],self._imsz[1],axis=0).transpose()
+        self._ymat=np.repeat([yvec],self._imsz[0],axis=0)
+        self.rmat=np.sqrt( (self._xmat-self.center[0])**2+(self._ymat-self.center[1])**2)*self.pixsize
+        
     def get_parameterized_ps(self,k_in: Optional[NDArray[np.floating]] = None):
         """
 
@@ -588,7 +661,7 @@ class ImagesFromPS:
         kmin = np.min(k_arr[kgtz])
         if np.sum(keqz) > 0:
             k_arr[keqz] = kmin/self._minfactor # Avoid k=0, but get a really small value.
-        ps  = self.p0*k_arr**(self.slope) * np.exp(-(self.kc/k_arr)**self.eta_c) * np.exp(-(k/self.kdis)**self.eta_d)
+        ps  = self.p0*k_arr**(self.slope) * np.exp(-(self.kc/k_arr)**self.eta_c) * np.exp(-(k_arr/self.kdis)**self.eta_d)
 
         return np.nan_to_num(ps)
 
@@ -653,9 +726,9 @@ class ImagesFromPS:
 
         psarr = self._kflat*0
         if k_in is None or ps_in is None:
-            psout = self.get_parameterized_ps(self.k)
+            psout = self.get_parameterized_ps(self.k_arr)
         else:
-            psout = np.exp(np.interp(np.log(self.gk),np.log(k_in),np.log(ps_in)))
+            psout = np.exp(np.interp(np.log(self.k_arr),np.log(k_in),np.log(ps_in)))
         psarr[self._gki] = psout
         ps2d = psarr.reshape(self.n_pix,self.n_pix) * self.n_pix * self.n_pix
 
@@ -695,18 +768,18 @@ class MultiGaussBeam:
     """
     
     def __init__(self,
-                 norms: ArrayLike[np.floating],
-                 widths: ArrayLike[np.floating]):
+                 norms: NDArray[np.float64] | Sequence[float],
+                 widths: NDArray[np.floating] | Sequence[float]):
         """
         Define a beam (or point-spread function, PSF) as multiple Gaussians via a list of
         normalizations (height) and widths (Gaussian sigmas).
 
         Parameters
         ----------
-        norms : ArrayLike[np.floating]
+        norms : NDArray[np.floating] | Sequence[float]
             array-like collection of Gaussian normalizations.
             Internally, the sum of norms will be normalized to equal unity
-        widths : ArrayLike[np.floating]
+        widths : NDArray[np.floating] | Sequence[float]
             array-like collection of Gaussian standard deviations.
         """
         self.norms = np.array(norms,dtype=float)

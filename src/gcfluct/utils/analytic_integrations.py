@@ -6,6 +6,8 @@ import scipy.special as sps
 ### 
 import InstrumentSpecific as IS
 
+from numpy.typing import NDArray
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
 
 #def log_profile_v2(args,r_bins,radii,alphas=[],rintmax=[],pause=False,finite=False):
 
@@ -408,77 +410,6 @@ def binsky_general(vals,geoparams,r_bins,theta_range,xymap,inalphas=[],
 
     return map,alphas,integrals
 
-def grid_profile(theta_range, profile, xymap, geoparams=[0,0,0,1,1,1,0,0],myscale=1.0,axis='z',
-                 xyinas=True):
-
-    ### Get new grid:
-    (x,y) = xymap
-    x,y = rot_trans_grid(x,y,geoparams[0],geoparams[1],geoparams[2])
-    x,y = get_ell_rads(x,y,geoparams[3],geoparams[4])
-    radmap = np.sqrt(x**2 + y**2)
-    theta = radmap*(u.arcsec).to("radian");  theta_min = np.min(theta_range)
-#    import pdb;pdb.set_trace()
-    bi=np.where(theta < theta_min);   theta[bi]=theta_min
-
-    nx, ny = theta.shape
-    fint = interp1d(theta_range, profile, bounds_error = False, fill_value = 0)
-    mymap = np.float64(fint(theta.reshape(nx * ny))) # Type 17 = float? (Implicitly float 32?)
-    mymap = mymap.reshape(nx,ny)
-    ### And a couple more *necessary* modification:
-    ### Where we want to scale it by a certain r_bin, given in radians. We also want to scale by "Ella", if axis='x':
-
-    a2r   = (u.arcsec).to("radian")
-    conv = a2r if xyinas else 1.0  # Is xymap in arcseconds or radions?
-    
-    if axis == 'x':
-        xell = (x/(geoparams[3]*myscale))*conv # x is initially presented in arcseconds
-        modmap = geoparams[5]*(xell**2)**(geoparams[6]) # Consistent with model creation??? (26 July 2017)
-    if axis == 'y':
-        yell = (y/(geoparams[4]*myscale))*conv # x is initially presented in arcseconds
-        modmap = geoparams[5]*(yell**2)**(geoparams[6]) # Consistent with model creation??? (26 July 2017)
-    if axis == 'z':
-        modmap = mymap*0.0 + geoparams[5]      # Just the plain old LOS elongation factor
-    
-    mymap = mymap*modmap   # Very important to be precise here.
-#    import pdb;pdb.set_trace()
-    if geoparams[7] > 0:
-#        angmap = np.arctan2(x,y)
-        angmap = np.arctan2(y,x)
-        #        gi = np.where(abs(angmap) < geoparams[7]/2.0)
-        bi = np.where(abs(angmap) > geoparams[7]/2.0)
-        #        import pdb; pdb.set_trace()
-        mymap[bi] = 0.0
-
-    return mymap
-
-def get_ell_rads(x,y,ella,ellb):
-
-    xnew = x/ella ; ynew = y/ellb
-
-    return xnew, ynew
-    
-def rot_trans_grid(x,y,xs,ys,rot_rad):
-
-    xnew = (x - xs)*np.cos(rot_rad) + (y - ys)*np.sin(rot_rad)
-    ynew = (y - ys)*np.cos(rot_rad) - (x - xs)*np.sin(rot_rad)
-
-    return xnew,ynew
-
-def ycylfromprof(Int_Pres,theta_range,theta_max):
-    """
-    Remember, theta_range is in radians
-    """
-    i=1 # Start at the second entry!
-    Ycyl=0
-    while i < len(theta_range):
-        if theta_range[i] < theta_max:
-            dtheta = theta_range[i]-theta_range[i-1]
-            Yshell = 2.0*np.pi*theta_range[i]*dtheta*Int_Pres[i]
-            Ycyl = Ycyl + Yshell
-        i+=1
-
-    return Ycyl
-
 def analytic_shells(r_bins,vals,theta,correl=False,alphas=[],shockxi=0.0,fixalpha=False,
                     finite=False,narm=False,strad=False,negvals=None,tmax=0):
     """
@@ -627,102 +558,6 @@ def shell_correl(integrals,r_bins,theta):
             
     return avgs
 
-def iter_grid_profile(integrals, myrs, theta_range, xymap, geoparams=[0,0,0,1,1,1,0,0],axis='z'):
-    """
-    This largely copies the functionality of grid_profile, but is designed to be much faster for
-    iterative applications (same geoparams)
-    """
-
-    ### Get new grid:
-    (x,y) = xymap
-    x,y = rot_trans_grid(x,y,geoparams[0],geoparams[1],geoparams[2])
-    x,y = get_ell_rads(x,y,geoparams[3],geoparams[4])
-    radmap = np.sqrt(x**2 + y**2)
-    theta = radmap*(u.arcsec).to("radian");  theta_min = np.min(theta_range)
-    bi=np.where(theta < theta_min);   theta[bi]=theta_min
-    nx, ny = theta.shape
-
-    rsRads = myrs / np.min(myrs)   # This should be unitless from Python's perspective, but really in arcseconds.
-    
-    ### And a couple more *necessary* modification:
-    ### Where we want to scale it by a certain r_bin, given in radians. We also want to scale by "Ella", if axis='x':
-    if axis == 'x':
-        xell = (x/(geoparams[3]*np.min(myrs)))*(u.arcsec).to("radian") # x is initially presented in arcseconds
-        modmap = geoparams[5]*(xell**2)**(geoparams[6]) # Consistent with model creation??? (26 July 2017)
-    if axis == 'y':
-        yell = (y/(geoparams[4]*np.min(myrs)))*(u.arcsec).to("radian") # x is initially presented in arcseconds
-        modmap = geoparams[5]*(yell**2)**(geoparams[6]) # Consistent with model creation??? (26 July 2017)
-    if axis == 'z':
-        modmap = map*0.0 + geoparams[5]      # Just the plain old LOS elongation factor
-
-    mymap = np.zeros(x.shape)
-    for profile, myscale in zip(integrals, rsRads):
-        
-        fint = interp1d(theta_range, profile, bounds_error = False, fill_value = 0)
-        map = np.float64(fint(theta.reshape(nx * ny))) # Type 17 = float? (Implicitly float 32?)
-        map = map.reshape(nx,ny)
-        map = map * modmap * (myscale**(-2*geoparams[6]))
-        mymap+=map
-        
-    if geoparams[7] > 0:
-        angmap = np.arctan2(y,x)
-        bi = np.where(abs(angmap) > geoparams[7]/2.0)
-        mymap[bi] = 0.0
-
-    return mymap
-
-def iter_grid_profile_v2(integrals, myrs, theta_range, xymap, geoparams=[0,0,0,1,1,1,0,0],axis='z',
-                         xyinas=True):
-    """
-    This largely copies the functionality of grid_profile, but is designed to be much faster for
-    iterative applications (same geoparams)
-    """
-
-    conv   = a2r*1.0 if xyinas else 1.0
-    ### Get new grid:
-    (x,y) = xymap
-    x,y = rot_trans_grid(x,y,geoparams[0],geoparams[1],geoparams[2])
-    x,y = get_ell_rads(x,y,geoparams[3],geoparams[4])
-    radmap = np.sqrt(x**2 + y**2)
-    theta = radmap*conv;  theta_min = np.min(theta_range)
-    bi=np.where(theta < theta_min);   theta[bi]=theta_min
-    #nx, ny = theta.shape
-
-    rsRads = myrs / np.min(myrs)   # This should be unitless from Python's perspective, but really in arcseconds.
-    a2r    = (u.arcsec).to("radian")
-    ### And a couple more *necessary* modification:
-    ### Where we want to scale it by a certain r_bin, given in radians. We also want to scale by "Ella", if axis='x':
-    if axis == 'x':
-        xell = (x/(geoparams[3]*np.min(myrs)))*conv # x is initially presented in arcseconds
-        modmap = geoparams[5]*(xell**2)**(geoparams[6]) # Consistent with model creation??? (26 July 2017)
-    if axis == 'y':
-        yell = (y/(geoparams[4]*np.min(myrs)))*conv # x is initially presented in arcseconds
-        modmap = geoparams[5]*(yell**2)**(geoparams[6]) # Consistent with model creation??? (26 July 2017)
-    if axis == 'z':
-        modmap = map*0.0 + geoparams[5]      # Just the plain old LOS elongation factor
-
-    Int_Prof = np.zeros((integrals.shape[1]))
-
-    for profile, myscale in zip(integrals, rsRads):
-        Int_Prof+=  (myscale**(-2*geoparams[6])) * profile
-
-    #import pdb;pdb.set_trace()
-        
-    fint = interp1d(theta_range, Int_Prof, bounds_error = False, fill_value = 0)
-    mymap = np.float64(fint(theta.reshape(theta.size))) # Type 17 = float? (Implicitly float 32?)
-    mymap = mymap.reshape(theta.shape)
-    mymap = mymap * modmap 
-        
-    if geoparams[7] > 0:
-        angmap = np.arctan2(y,x)
-        bi = np.where(abs(angmap) > geoparams[7]/2.0)
-        mymap[bi] = 0.0
-
-    return mymap
-
-##############################################################
-##############################################################
-##############################################################
 
 
 def shell_pl(epsnot,sindex,rmin,rmax,radarr,c=1.0,ff=1e-3,epsatrmin=0,

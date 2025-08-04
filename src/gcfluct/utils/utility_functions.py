@@ -1,5 +1,8 @@
 import numpy as np
 
+from numpy.typing import NDArray
+#from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
+
 def bin_two2Ds(independent,dependent,binsize=1,witherr=False,withcnt=False):
 
     flatin = independent.flatten()

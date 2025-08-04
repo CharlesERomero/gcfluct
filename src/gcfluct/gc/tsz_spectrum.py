@@ -89,8 +89,14 @@ import astropy.units as u
 import scipy.interpolate as spint
 import astropy.constants as const
 import scipy.constants as spconst
+from numpy.typing import NDArray
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
 
 def get_sz_values():
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
     ########################################################
     ### Astronomical value...
     tcmb = 2.72548*u.K # Kelvin (uncertainty = 0.00057)
@@ -127,6 +133,10 @@ temp_conv = 1.0/szcv['m_e_c2']
 freq_conv = (szcv['planck'] *1.0e9)/(szcv['boltzmann']*szcv['tcmb'])
 
 def tSZ_conv_nonrel(llt,llx,ult,ulx,st,sx):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
 
     thetae=llt
     tarr = None
@@ -152,19 +162,28 @@ def tSZ_conv(llt,llx,ult,ulx,st,sx):
     and Jy/beam as is often prescribed.
     
     Parameters
-    __________
-    llt - Lower limit on Theta_e
-    llx - Lower limit on x
-    ult - Upper limit on Theta_e
-    ulx - Upper limit on x
-    st  - Step in Theta_e
-    sx  - Step in x
+    ----------
+    llt : np.floating
+        Lower limit on Theta_e
+    llx : np.floating
+        Lower limit on x
+    ult : np.floating
+        Upper limit on Theta_e
+    ulx : np.floating
+        Upper limit on x
+    st : np.floating
+        Step in Theta_e
+    sx : np.floating
+        Step in x
 
     Returns
     -------
-    tarr  - The array of theta_e values
-    xarr  - The array of X values
-    farr  - The array of F(theta_e,x) values
+    tarr : NDArray[np.floating]
+        The array of theta_e values
+    xarr : NDArray[np.floating]
+        The array of X values
+    farr : NDArray[np.floating]
+        The array of F(theta_e,x) values
     """
 
     thetae=llt
@@ -208,6 +227,10 @@ def tSZ_conv(llt,llx,ult,ulx,st,sx):
 #----------------  SUBFUNCTION R(theta_e,X)  -----------------------
 
 def nozawa_r(thetae,x):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
  
     A=np.array([4.13674e-03,
                 -3.31208e-02,   1.10852e-01,  -8.50340e-01,   9.01794e+00,
@@ -262,6 +285,10 @@ def nozawa_r(thetae,x):
 #------------------------------------------------------------
 
 def fink(thetae,X):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
 
     SH  = (np.exp(X/2)-np.exp(-X/2))/2
     CH  = (np.exp(X/2)+np.exp(-X/2))/2
@@ -327,6 +354,10 @@ def fink(thetae,X):
     return result
 
 def fnonrel(thetae,X):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
 
     SH  = (np.exp(X/2)-np.exp(-X/2))/2
     CH  = (np.exp(X/2)+np.exp(-X/2))/2
@@ -342,23 +373,24 @@ def fnonrel(thetae,X):
     return result
     
 def Jyperbeam_factors(bv):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
     
     srtosas = (1.0*u.sr).to("arcsec**2")     # Square arcseconds in a steradian
     bpsr = srtosas/bv                        # Beams per steradiann
     Inot = szcu["Jycmb"]
-
-#    print bpsr,srtosas,Inot
     
     result=Inot.value/bpsr
-    
-### FACTORS no longer necessary; I have built this in to analytic formulas
-### and it's already built into the data table (from which values may be
-### interpolated)
-#    result=factors                # Useful for comparing to Figure 2.
-    
+       
     return result
 
 def TBright_factors(x):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
     
     Tcmb = szcv["tcmb"]
     f1 = x**3 / (np.exp(x) - 1.0)       # Equation 2.16 in Nozawa+ 2000
@@ -376,6 +408,10 @@ def TBright_factors(x):
     return result
     
 def tSZ_conv_single(temperature, frequency):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
 
     theta = temp_conv * temperature
     x = freq_conv * frequency
@@ -394,6 +430,10 @@ def tSZ_conv_single(temperature, frequency):
     return fofx.item(0) # Return as a scalar
     
 def tSZ_conv_range(tlow,thigh,tstep,flow,fhigh,fstep):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
 
     llx = freq_conv * flow
     ulx = freq_conv * fhigh
@@ -410,6 +450,10 @@ def tSZ_conv_range(tlow,thigh,tstep,flow,fhigh,fstep):
     return temparr,freqarr,fofx
 
 def itoh_2004_r(thetae,x):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
 
     Aij=np.array([[-1.81317E1,  9.97038E1 , -6.07438E1 ,  1.05143E3 , -2.86734E3 ,  7.73353E3 ,
           -8.16644E3 , -5.37712E3 ,  1.52226E4 , 7.18726E3 ,  -1.39548E4 , -2.08464E4 , 1.79040E4],
@@ -449,6 +493,10 @@ def itoh_2004_r(thetae,x):
     return result
 
 def itoh_2002_r(thetae,x):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
 
     Cki=np.array([[2.38348e-4,  7.70060e-4,  7.61858e-3,  -5.11946e-2,  2.46541e-1,  -6.55886e-1,
                    1.04523e0, -9.82508e-1,  5.03123e-1,  -1.08542e-1,  2.26789e-4],
@@ -485,6 +533,10 @@ def itoh_2002_r(thetae,x):
     return result
     
 def itoh_2004_int(theta, x, kind='cubic'):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
 
     ref_file ='/home/romero/Python/model_fitting/di.dat'
     ref_data = np.loadtxt(ref_file)
@@ -500,6 +552,10 @@ def itoh_2004_int(theta, x, kind='cubic'):
     return conv
 
 def create_arrs_nonrel(thetae,x,tarr=None,xarr=None,farr=None):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
 
     factor = x**3 / (np.exp(x) - 1.0)       # Equation 2.16 in Nozawa+ 2000
     
@@ -514,6 +570,10 @@ def create_arrs_nonrel(thetae,x,tarr=None,xarr=None,farr=None):
     return tarr, xarr, farr
 
 def create_arrs_lowrel(thetae,x,tarr=None,xarr=None,farr=None):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
 
     factor = x**3 / (np.exp(x) - 1.0)       # Equation 2.16 in Nozawa+ 2000
     
@@ -528,6 +588,11 @@ def create_arrs_lowrel(thetae,x,tarr=None,xarr=None,farr=None):
     return tarr, xarr, farr
 
 def create_arrs_modrel(thetae,x,tarr=None,xarr=None,farr=None):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
+
     factor = x**3 / (np.exp(x) - 1.0)       # Equation 2.16 in Nozawa+ 2000
     if type(tarr) == type(None):
         tarr=np.array(thetae)
@@ -540,6 +605,11 @@ def create_arrs_modrel(thetae,x,tarr=None,xarr=None,farr=None):
     return tarr, xarr, farr
 
 def create_arrs_Mrel_Hacc(thetae,x,tarr=None,xarr=None,farr=None):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
+
     factor = x**3 / (np.exp(x) - 1.0)       # Equation 2.16 in Nozawa+ 2000
     if type(tarr) == type(None):
         tarr=np.array(thetae)
@@ -552,6 +622,11 @@ def create_arrs_Mrel_Hacc(thetae,x,tarr=None,xarr=None,farr=None):
     return tarr, xarr, farr
 
 def create_arrs_higrel(thetae,x,tarr=None,xarr=None,farr=None):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
+    
     X0 = 3.830*(1.0 + 1.1674*thetae - 0.8533*thetae**2)
     Gfact = thetae * x**2 * np.exp(-x) * (x - X0)
 #    Ffact = x**3 / (np.exp(x) - 1.0) 

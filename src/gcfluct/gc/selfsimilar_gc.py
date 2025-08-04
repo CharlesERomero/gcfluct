@@ -5,18 +5,21 @@ from scipy.interpolate import interp1d
 from astropy.io import fits
 from astropy import wcs   
 import astropy.units as u
-from astropy.units import Quantity
+from astropy.units import Quantity, UnitBase
 import astropy.constants as const
 from astropy.coordinates import Angle #
 from astropy.cosmology import FlatLambdaCDM
+
 from numpy.typing import NDArray
 from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
 
 # Now project/repo modules
-import utility_functions as uf
-import numerical_integration as ni
-import tsz_spectrum as tsz
-import ksz_spectrum as ksz
+import gcfluct.utils.utility_functions as uf
+import gcfluct.utils.numerical_integration as ni
+import gcfluct.gc.tsz_spectrum as tsz
+import gcfluct.gc.ksz_spectrum as ksz
+from gcfluct.spectra.spectra2d import ImagesFromPS
+from gcfluct.spectra.spectra2d import PSfromImages
 
 class Cluster:
 
@@ -101,7 +104,8 @@ class Cluster:
                 self.r500 = r500
                 self.m500 = self.r2m_delta()
 
-        self._ang500 = _calc_theta500()  #r500 on the sky (in radians)
+        self._p500 = self._p500_from_m500()
+        self._ang500 = self._calc_theta500()  #r500 on the sky (in radians)
         self.arcminutes500 = self._ang500 * 60 * 180 / np.pi # And in arcseconds
         self.kpcperas = self.d_ang.to("kpc").value * np.pi / (3600 * 180)
 
@@ -146,9 +150,9 @@ class Cluster:
         p500 : Quantity
             P_500 in units of pressure.
         """
-        p500 = (1.65 * 10**-3) * ((E)**(8./3)) * ((
-            m500 * h70)/ ((3*10**14 * h70**(-1)) * const.M_sun)
-            )**(2./3+0.11) * h70**2 * u.keV / u.cm**3
+        p500 = (1.65 * 10**-3) * ((self._h)**(8./3)) * ((
+            self.m500 * self._h70)/ ((3*10**14 * self._h70**(-1)) * const.M_sun)
+            )**(2./3+0.11) * self._h70**2 * u.keV / u.cm**3
         return p500
                                        
     def m2r_delta(self,
@@ -288,6 +292,12 @@ class SS_Model(Cluster):
     pixarc : np.floating
     npix : int
 
+    rmat : NDArray[np.floating]
+    y_map : NDArray[np.floating]
+    xrsb_map : NDArray[np.floating]
+    smoothedy_maps : NDArray[np.floating]
+    smoothedy_profile : NDArray[np.floating]
+
     Methods
     -------
     get_cosmo()
@@ -356,16 +366,70 @@ class SS_Model(Cluster):
         Thom_cross = (spconst.value("Thomson cross section") *u.m**2).to("cm**2")
         mec2 = (const.m_e *const.c**2).to("keV") # Electron mass times speed of light squared, in keV
         self._pdl2y = Thom_cross * self.d_ang.to("cm") / mec2 * u.cm**3
-        self._p2invkpc = Thom_cross * u.kpc(to"cm") / mec2 * u.cm**3
+        self._p2invkpc = Thom_cross * u.kpc.to("cm") / mec2 * u.cm**3
         lg_rmax = np.log10((r_max*self.r500/u.kpc).decompose().value) # when using kpc
         if rads is None:
             rads = np.logspace(lg_rmin,lg_rmax,npts) * u.kpc # 1 Mpc ~ r500, usually
         self.rads = rads
         self.radians = (rads / self.d_ang).decompose().value
         ###########################################################################################
-        self.set_gnfw_model() # Will assign A10 UPP pars at initialization.
+        self.set_gnfw_profile() # Will assign A10 UPP pars at initialization.
+        self.set_xr_USBP()
 
-    def set_gnfw_model(self,
+        ###########################################################################################
+        # We can make maps of our cluster, but we'll want to know image properties to do so.
+        # For now, set the maps to None.
+        self.rmat = None
+        self.y_map = None
+        self.xrsb_map = None
+
+        # Private variables
+        self._imsz = None
+        self._npix = None
+        self._xymat = None
+
+        
+        self.smoothedy_maps = None # (re)set this to None; I want the user to specify smoothing kernels   
+        self.smoothedy_profile = None
+        # Currently no XRSB smoothing (beta models generally just absorb/include it... not always in the most
+        # accurate manner.) In any case, smoothing the beta model isn't really an improvement all things
+        # considered.
+
+    def _set_xyrmat_from_imagefromps(self,
+                                     imagefromps : ImagesFromPS):
+
+        self._imsz = imagefromps._imsz
+        is_length = imagefromps.pixunits.is_equivalent(u.kpc)
+        if is_length:
+            pix_arcsec = imagefromps.pixsize * imagefromps.pixunits.to("kpc") / self.kpcperas
+        else:
+            pix_arcsec = imagefromps.pixsize * imagefromps.pixunits.to("arcsec")
+        self.pixarc = pix_arcsec
+        self.pixunits = imagefromps.pixunits
+        self._npix = self._imsz[0]
+        self._xymat = ( imagefromps._xmat, imagefromps._ymat ) # Tuple of two 2D arrays (maps)
+        self.rmat = imagefromps.rmat        
+        
+    def set_ss_maps(self,
+                    n_r500: Union[np.floating,int] = 3.0,
+                    pix_arcsec: Union[np.floating,int] = 1.0,
+                    cx: Optional[Union[np.floating,int]] = None,
+                    cy: Optional[Union[np.floating,int]] = None,
+                    force_integer: bool = False,
+                    imagefromps: Optional[ImagesFromPS] = None):
+
+        if imagefromps is None:
+            self._set_xyrmat(n_r500=n_r500,pix_arcsec=pix_arcsec,cx=cx,cy=cy,force_integer=force_integer)
+        else:
+            self._set_xyrmat_from_imagefromps(imagefromps)
+        self.set_ymap_from_gnfw()
+        self.set_xrsb_map()
+        self.smoothedy_maps = None # (re)set this to None; I want the user to specify smoothing kernels   
+        self.smoothedy_profile = None
+        self.smoothedxrsb_maps = None # (re)set this to None; I want the user to specify smoothing kernels   
+        self.smoothedxrsb_profile = None
+        
+    def set_gnfw_profile(self,
                        c500: np.floating = 1.177,
                        p0: np.floating = 8.403,
                        a: np.floating = 1.0510,
@@ -373,7 +437,7 @@ class SS_Model(Cluster):
                        c: np.floating = 0.3081):
         """
         Here is a block of methods. I might want to change the functionality so that I could make a    
-        Compton-y profile (set_gnfw_yprof) in one command after updating gnfw pars.                   
+        Compton-y profile (set_yprof) in one command after updating gnfw pars.                   
         I probably will just write a new method to do that.
         .. math::
 
@@ -397,10 +461,6 @@ class SS_Model(Cluster):
         self.set_pressure_profile_gnfw()
         self.set_ulPprof()
         self.set_yprof()
-        self.set_xyrmap()
-        self.set_yMap_from_gnfw()
-        self.smoothedy_Maps = None # (re)set this to None; I want the user to specify smoothing kernels   
-        self.smoothedy_Profile = None
         
     def _set_gnfw_pars(self,
                        c500: np.floating = 1.177,
@@ -433,12 +493,13 @@ class SS_Model(Cluster):
 
         self.gnfw_pars = {"c500":c500, "p0":p0, "a":a, "b":b, "c":c}        
         
-    def set_xyrmap(self,
-                   n_r500: Union[np.floating,int] = 3.0,
-                   pix_arcsec: Union[np.floating,int] = 1.0,
-                   cx: Optional[Union[np.floating,int]] = None,
-                   cy: Optional[Union[np.floating,int]] = None,
-                   force_integer: bool = False):
+    def _set_xyrmat(self,
+                    n_r500: Union[np.floating,int] = 3.0,
+                    pix_arcsec: Union[np.floating,int] = 1.0,
+                    pixunits : UnitBase = None,
+                    cx: Optional[Union[np.floating,int]] = None,
+                    cy: Optional[Union[np.floating,int]] = None,
+                    force_integer: bool = False):
         """
         Defines grids for maps to be made.
 
@@ -447,6 +508,8 @@ class SS_Model(Cluster):
         n_r500 : Union[np.floating,int]
             How many factors of R500 to extend to in radius, along a given axis. Default is 3.0 such that the entire image
             will be 6 R_500 on a side (and sqrt(2) more along the diagonal)
+        pix_arcsec : np.floating
+        pixunits : BaseUnit
         cx : Optional[Union[np.floating,int]]
             If provided, the center of the target, in pixel coordinates, along axis=0
         cy : Optional[Union[np.floating,int]]
@@ -457,18 +520,32 @@ class SS_Model(Cluster):
                                        
         self.pixarc = pix_arcsec
         mapsize = np.round(self.arcminutes500*2*n_r500)
-        self.npix = int(np.round((mapsize*60)/self.pixarc))
+        self._npix = int(np.round((mapsize*60)/self.pixarc))
         if cx is None:
-            cx   = self.npix//2 if force_integer else self.npix/2.0
+            cx   = self._npix//2 if force_integer else self._npix/2.0
         if cy is None:
-            cy   = self.npix//2 if force_integer else self.npix/2.0
-        x1   = (np.arange(self.npix)-cx)*self.pixarc
-        y1   = (np.arange(self.npix)-cy)*self.pixarc
-        x    = np.outer(x1,np.ones(self.pix))
-        y    = np.outer(np.ones(self.pix),y1)
+            cy   = self._npix//2 if force_integer else self._npix/2.0
+        x1   = (np.arange(self._npix)-cx)*self.pixarc
+        y1   = (np.arange(self._npix)-cy)*self.pixarc
+        x    = np.outer(x1,np.ones(self._npix))
+        y    = np.outer(np.ones(self._npix),y1)
         
-        self.xymap = (x,y) # Tuple of two 2D arrays (maps)
-        self.rmap = np.sqrt(x**2 + y**2)
+        if isinstance(pixunits,UnitBase):
+            is_angle = pixunits.is_equivalent(u.deg)
+            is_length = pixunits.is_equivalent(u.kpc)
+            if is_angle or is_length:
+                self.pixunits = pixunits
+        else:
+            if pixunits is None:
+                # Maybe the user is just playing around and doesn't care about units.
+                if not no_warn:
+                    warnings.warn("No pixel units were input! Using u.arcsec; proceed with caution.")
+                self.pixunits = u.arcsec
+            else:
+                raise AttributeError("Pixel units must either be a length or angle.")
+        
+        self._xymat = (x,y) # Tuple of two 2D arrays (maps)
+        self.rmat = np.sqrt(x**2 + y**2)
 
     def gnfw(self, radii : Quantity = None) -> Quantity:
         """
@@ -492,14 +569,14 @@ class SS_Model(Cluster):
 
         if radii is None:
             radii = self.rads
-        p_norm = self.p500 * self._h70**-1.5 * self.gnfw["p0"]   # self.p0
-        r_p = self.r500 / self.c500
+        p_norm = self._p500 * self._h70**-1.5 * self.gnfw_pars["p0"]   # self.p0
+        r_p = self.r500 / self.gnfw_pars["c500"]
         r_scaled =  (radii/r_p).decompose().value
         #pressure = (p_norm / (((r_scaled)**self.c)*((1 + (r_scaled)**self.a))**((self.b - self.c)/self.a)))
 
-        core_pressure = r_scaled**self.gnfw["c"] 
-        outer_exponent = (self.gnfw["b"] - self.gnfw["c"])/self.gnfw["a"] # (b-c)/a
-        bulk = ( 1 + r_scaled**self.gnfw["a"] )**outer_exponent
+        core_pressure = r_scaled**self.gnfw_pars["c"] 
+        outer_exponent = (self.gnfw_pars["b"] - self.gnfw_pars["c"])/self.gnfw_pars["a"] # (b-c)/a
+        bulk = ( 1 + r_scaled**self.gnfw_pars["a"] )**outer_exponent
         pressure = p_norm / bulk        
 
         return pressure
@@ -536,14 +613,14 @@ class SS_Model(Cluster):
         From attribute y_prof, interpolates and sets attribute ymap.
         """
 
-        self.set_gnfw_yprof()
-        flatymap = uf.grid_profile(self.radians,self.y_prof,self.xymap)
-        self.ymap = flatymap.reshape((self.npix,self.npix))
+        self.set_yprof()
+        flatymap = uf.grid_profile(self.radians,self.y_prof,self._xymat)
+        self.y_map = flatymap.reshape((self._npix,self._npix))
 
     def set_gnfw_beam_smoothed_map(self,
                                fwhm : np.floating = 10.0):
         """
-        Smooths the Compton y map (ymap) by a single Gaussian, i.e. an instrument's beam (or PSF).
+        Smooths the Compton y map (y_map) by a single Gaussian, i.e. an instrument's beam (or PSF).
         Sets attribute smoothedy_maps, itself a dictionary; keys are a string-formating of FWHM
 
         Paramters
@@ -554,7 +631,7 @@ class SS_Model(Cluster):
         
         y_prof = self.get_gnfw_yprof()
         pixfwhm = fwhm/self.pixarc
-        smoothed = imf.fourier_filtering_2d(self.ymap,"gauss",pixfwhm)     # in Compton y
+        smoothed = imf.fourier_filtering_2d(self.y_map,"gauss",pixfwhm)     # in Compton y
         dictkey = "{:.2f}".format(fwhm).replace('.','p')
         if self.smoothedy_maps is None:
             self.smoothedy_maps = {dictkey:smoothed}
@@ -580,7 +657,7 @@ class SS_Model(Cluster):
             if not (dictkey in self.smoothedy_maps):
                 self.set_gnfw_beam_smoothed_map(fwhm=fwhm)
         smoothed = self.smoothedy_maps[dictkey]
-        rbin,ybin,yerr,ycnts = uf.bin_two2Ds(self.rmap,self,binsize=self.pixarc*2.0)
+        rbin,ybin,yerr,ycnts = uf.bin_two2Ds(self.rmat,self,binsize=self.pixarc*2.0)
         fint = interp1d(rbin,ybin, bounds_error = False, fill_value = "extrapolate")
         radarcsec = self.radians * 3600 * 180/np.pi
         if self.smoothedy_profile is None:
@@ -666,15 +743,19 @@ class SS_Model(Cluster):
         """
         beta = 2.0/3.0
         x = 0.1
-        theta_c = x * self._ang500 *60 * 180 / (D_a_mpc * np.pi) # arcminutes
-        if SoftOnly:
+        theta_c = x * self.arcminutes500 # in arcminutes
+        #self.d_ang.to("Mpc").value
+        if soft_only:
             universal_I = 5.9e-4 / (u.Mpc)
-            z_scale = self.r500*self._h**2 / (1 + z)**3
+            m_pivot = 9.5e14 * u.M_sun
+            m_scale = (self.m500/m_pivot).decompose().value
+            z_scale = self.r500 * m_scale * self._h**2 / (1 + self.z)**3
         else:
             universal_I = 7.7e-4 / (u.Mpc**2)
-            z_scale = self.r500**2 * self._h*(7.0/6.0) / (1 + self.z)**3
-            I_xscale = (2*np.pi * x**2 * (np.sqrt(1+x**2) - 1)) / (np.sqrt(1+x**2))
-            I_not = (Universal_I * Zscale / I_xscale).decompose().value
+            z_scale = self.r500**2 * self._h**(7.0/6.0) / (1 + self.z)**3
+            
+        I_xscale = (2*np.pi * x**2 * (np.sqrt(1+x**2) - 1)) / (np.sqrt(1+x**2))
+        I_not = (universal_I * z_scale / I_xscale).decompose().value
 
         self.xr_I_0 = I_not
         self.xr_theta_c = theta_c
@@ -695,6 +776,14 @@ class SS_Model(Cluster):
         sb_prof = self.xr_I_0 / ( (1 + (radarcmins/self.xr_theta_c)**2)**(3*self.xr_beta - 0.5) )
         self.xr_sb_prof = sb_prof
 
+    def set_xrsb_map(self):
+        """
+        From attribute y_prof, interpolates and sets attribute ymap.
+        """
+
+        flatxrsbmap = uf.grid_profile(self.radians,self.xr_sb_prof,self._xymat)
+        self.xrsb_map = flatxrsbmap.reshape((self._npix,self._npix))
+        
 ##########################################################################################################################
 ######                                                                                                               #####
 ######        Functions that contain relations from the literature or otherwise not tied to objects                  #####

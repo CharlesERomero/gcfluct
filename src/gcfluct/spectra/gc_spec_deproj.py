@@ -1,12 +1,13 @@
 import numpy as np
 from astropy.io import fits
 from scipy.special import gamma
+import astropy.units as u
 from numpy.typing import NDArray
 from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
-from astropy.units import Quantity
+from astropy.units import Quantity, UnitBase
 import warnings
 
-import gcfluct.gc.selfsimilar_gc as ssgc
+#import gcfluct.gc.selfsimilar_gc as ssgc
 from gcfluct.gc.selfsimilar_gc import SS_Model
 from gcfluct.spectra.spectra2d import ImagesFromPS, PSfromImages
 
@@ -93,7 +94,8 @@ class SpecDeproj:
                  extent500 = 10.0,
                  step500 = 1e-2,
                  spec_model = None,
-                 spec_observed = None):
+                 spec_observed = None,
+                 sz: Optional[bool] = None):
         """
         Initiates the class. If attributes should have units, they will be in kpc (or inverse kpc).
 
@@ -109,10 +111,13 @@ class SpecDeproj:
             A class which models a parameterized power spectrum.
         spec_observed : Optional[PSfromImages]
             A class with an image and inferred (calculated/measured) spectra.
+        sz : Optional[bool]
+            Preferably this is set; this provides for better bookkeeping. It is required for other methods
+            such as return_integ_nmap().
         """
         
         # I will work in kpc (rather than angular units). We'll transform from that if need be.
-        if gc_model is SS_Model:
+        if isinstance(gc_model,SS_Model):
             self.gc_model = gc_model
         else:
             raise TypeError("gc_model must be of the class SS_Model.")
@@ -122,19 +127,21 @@ class SpecDeproj:
         self.z_extent = r500_kpc * extent500
 
         self.z_array = np.arange(-self.z_extent, self.z_extent, self.z_step)  # in kpc
-        self.kz = np.fft.fftfreq(len(z_array),self.z_step) 
+        self.kz = np.fft.fftfreq(len(self.z_array),self.z_step) 
         self._pos_inds = self.kz > 0         
         self.pos_kz = self.kz[self._pos_inds] #
-        self.dkz = mykz[1]-mykz[0] #
+        self.dkz = self.pos_kz[1]-self.pos_kz[0] #
 
         self.set_sz_windows()
         self.set_xr_windows()
         
-        self.set_spec_model(spec_model)
-        self.set_spec_observed(spec_observed)
+        self.set_spec_model(spec_model,sz=sz)
+        self.set_spec_observed(spec_observed,sz=sz)
         self._deselect_window()
 
-    def set_spec_model(self,spec_model):
+    def set_spec_model(self,
+                       spec_model: PSfromImages,
+                       sz: Optional[bool] = None):
         """
         Sets the attribute spec_model, which must be of the class ImagesFromPS. 
 
@@ -142,12 +149,21 @@ class SpecDeproj:
         ----------
         spec_model : ImagesFromPS
             A class relevant to modeling power spectra and generating (image) realizations.
+        sz : Optional[bool]
+            Preferably this is set; this provides for better bookkeeping. It is required for other methods
+            such as return_integ_nmap().
         """
         
-        if spec_model is None or spec_model is ImagesFromPS:
+        if spec_model is None or isinstance(spec_model,ImagesFromPS):
             self.spec_model = spec_model
         else:
             raise TypeError("spec_model must either be None or of the class ImagesFromPS.")
+
+        if sz is None:
+            warnings.warn("Please indicate whether this attribute corresponds to SZ (True) or X-ray (False)")
+            self._spec_model_sz = None
+        else:
+            self._spec_model_sz = sz
 
     def set_spec_observed(self,
                           spec_observed: PSfromImages,
@@ -164,19 +180,19 @@ class SpecDeproj:
             such as return_integ_nmap().
         """
         
-        if spec_observed is None or spec_observed is PSfromImages:
+        if spec_observed is None or isinstance(spec_observed,PSfromImages):
             self.spec_observed = spec_observed
         else:
             raise TypeError("spec_observed must either be None or of the class PSfromImages.")
 
         if sz is None:
             warnings.warn("Please indicate whether this attribute corresponds to SZ (True) or X-ray (False)")
-            self.spec_obs_sz = None
+            self._spec_obs_sz = None
         else:
-            self.spec_obs_sz = sz
+            self._spec_obs_sz = sz
 
     
-    def _get_mats(self) -> Tuple[NDArray[np.floating],NDArray[np.floating],NDArray[np.floating]] :
+    def _get_rad_mat(self) -> Tuple[NDArray[np.floating],NDArray[np.floating],NDArray[np.floating]] :
         """
         A little helper method to get 2D arrays of radii for array-based computation.
 
@@ -191,8 +207,11 @@ class SpecDeproj:
         theta_sky = self.gc_model.rads.to("kpc") # Keep as quantity
         z_los = self.z_array * u.kpc
         
-        sky_mat = np.repeat([theta_sky], z_los.size, axis=0)
-        los_mat = np.repeat([z_los], theta_sky.size, axis=0).transpose()
+        sky_mat = np.repeat([theta_sky], z_los.size, axis=0).transpose()
+        los_mat = np.repeat([z_los], theta_sky.size, axis=0)
+
+        #print(sky_mat.shape,los_mat.shape)
+        #import pdb;pdb.set_trace()
 
         rad_mat = np.sqrt(sky_mat**2 + los_mat**2) # 3D radii, as a 2D matrix
 
@@ -210,7 +229,7 @@ class SpecDeproj:
         """
         
         rad_mat, sky_mat, los_mat = self._get_rad_mat()        
-        y_mat = np.repeat([self.gc_model.y_prof], self.z_array.size, axis=0)
+        y_mat = np.repeat([self.gc_model.y_prof], self.z_array.size, axis=0).transpose()
         pres_mat = self.gc_model.gnfw(rad_mat) # Pressure matrix
 
         self.sz_windows = (pres_mat*self.gc_model._p2invkpc).decompose().value / y_mat
@@ -218,7 +237,7 @@ class SpecDeproj:
         # axis=-1, is numpy's default behavior. But for explicity:
         tilde_mat = np.fft.fft(self.sz_windows,axis=1)*self.z_step
         self.sz_tilde_pow = np.abs(tilde_mat**2)
-        self.sz_integ_ns = np.sum(self.tilde_pow,axis=1) * self.dkz
+        self.sz_integ_ns = np.sum(self.sz_tilde_pow,axis=1) * self.dkz
         
     def set_xr_windows(self):
         """
@@ -232,19 +251,19 @@ class SpecDeproj:
         """
 
         rad_mat, sky_mat, los_mat = self._get_rad_mat()
-        theta_kpc = self.gc_model.xr_theta_c.to("kpc")
-        r3d_scaled = (rad_mat/theta_kpc).decompose().value
-        r2d_scaled = (sky_mat/theta_kpc).decompose().value
+        theta_kpc = self.gc_model.xr_theta_c *60 * self.gc_model.kpcperas
+        r3d_scaled = (rad_mat/theta_kpc)
+        r2d_scaled = (sky_mat/theta_kpc)
         emmisivity = (1.0 + (r3d_scaled)**2)**(-3.0*self.gc_model.xr_beta)          # 
         surface_b = (1.0 + (r2d_scaled)**2)**(0.5 -3.0*self.gc_model.xr_beta)      # Recalculating...kind of
-        betanorm = gamma(3*beta-0.5)*gamma(0.5) / gamma(3*beta) 
+        betanorm = gamma(3*self.gc_model.xr_beta-0.5)*gamma(0.5) / gamma(3*self.gc_model.xr_beta) 
 
-        self.xr_windows = emmisivity / (betanorm*beta*theta_kpc.value*surface_b)   # inverse kpc
+        self.xr_windows = emmisivity / (betanorm*self.gc_model.xr_beta*theta_kpc*surface_b)   # inverse kpc
         
         # axis=-1, is numpy's default behavior. But for explicity:
         tilde_mat = np.fft.fft(self.xr_windows,axis=1)*self.z_step
         self.xr_tilde_pow = np.abs(tilde_mat**2)
-        self.xr_integ_ns = np.sum(self.tilde_pow,axis=1) * self.dkz
+        self.xr_integ_ns = np.sum(self.xr_tilde_pow,axis=1) * self.dkz
 
     def set_windows_manual(self,rad_in,thermo_prof,sb_prof,sz=True):
         """
@@ -265,7 +284,7 @@ class SpecDeproj:
         thermo_mat = np.exp(thermo_mat.reshape(rad_mat.shape)) * u.keV / u.cm**3 # Add units in.
         del rad1d # cleanup
 
-        sb_mat = np.repeat([sb_prof], self.z_array.size, axis=0)
+        sb_mat = np.repeat([sb_prof], self.z_array.size, axis=0).transpose()
 
         windows = thermo_mat / sb_mat
         # axis=-1, is numpy's default behavior. But for explicity:
@@ -318,26 +337,40 @@ class SpecDeproj:
         self._radius = radius
         self._sz = sz 
 
-    def return_integ_nmap(self) -> NDArray[np.floating]:
+    def return_integ_nmap(self,
+                          use_obs_spec : bool = True
+                          ) -> NDArray[np.floating]:
         """
         Calculates a grid (map) of N = int( |W^2| dkz ) values that can be used to rescale an image such
         that one directly computes a deprojected power spectrum. This requires that the attribute
         spec_observed is set (i.e. it uses a reference image).
 
+        Parameters
+        ----------
+        use_obs_spec : bool
+            Indicate whether to use spec_observed (when True) or spec_model (when False).
+            Default is True.
+        
         Returns
         -------
         nmap : NDArray[np.floating]
             A map of N values (based on
         """
-        
-        rmap1d = self.spec_observed.rmat.flatten() # Radii in map
+                
+        spec_obj = self.spec_observed if use_obs_spec else self.spec_model
+        is_sz = self._spec_obs_sz if use_obs_spec else self._spec_model_sz
+            
+        r1d = spec_obj.rmat.flatten() # Radii in map, as a 1D array.
         rns = self.gc_model.rads.to("kpc") # Radii associated with integ_n's (not Registered Nurses)
-        is_length = self.spec_observed.pixunits.is_equivalent(u.kpc)
-        if self.spec_obs_sz is None:
+        is_length = spec_obj.pixunits.is_equivalent(u.kpc)
+        if is_sz is None:
             raise TypeError("Well, you were warned to set this. Now it's a problem.")
         else:
-            integ_ns = self.sz_integ_ns if self.spec_obs_sz else self.xr_integ_ns # Has units of inverse kpc
-        
+            integ_ns = self.sz_integ_ns if is_sz else self.xr_integ_ns # Has units of inverse kpc
+
+        #print(self.sz_tilde_pow.shape,integ_ns.shape,r1d.shape)
+        #import pdb;pdb.set_trace()
+            
         if is_length:
             rn_vals = rns.to(self.gc_model.pixunits).value # A value, in the units of the map.
             n1d = np.interp(r1d, rn_vals, integ_ns,right=0)
@@ -345,8 +378,9 @@ class SpecDeproj:
             rn_arcsec = rns.value * self.gc_model.kpcperas * u.arcsec # In arcseconds
             rn_vals = rns.to(self.gc_model.pixunits).value # A value, in the units of the map.
             n1d = np.interp(r1d, rn_vals, integ_ns*self.gc_model.kpcperas,right=0)
-        
-        nmap = n1d.reshape(self.spec_observed._imsz)        
+            
+        nmap = n1d.reshape(spec_obj._imsz)
+            
         return nmap
 
     ##########################################################################################
@@ -374,7 +408,7 @@ class SpecDeproj:
 
         if k_out is None:
             
-            if self.spec_observed is PSfromImages:
+            if isinstance(self.spec_observed,PSfromImages):
                 k_theta = self.spec_observed.a12_kn
             else:
                 raise TypeError("Incorrect or no k_out supplied")

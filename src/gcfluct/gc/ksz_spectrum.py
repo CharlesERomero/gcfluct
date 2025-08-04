@@ -61,8 +61,15 @@ import scipy.interpolate as spint
 #import tSZ_spectrum as tsz
 import astropy.constants as const
 import scipy.constants as spconst
+from numpy.typing import NDArray
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
 
 def get_sz_values():
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
+
     ########################################################
     ### Astronomical value...
     tcmb = 2.72548*u.K # Kelvin (uncertainty = 0.00057)
@@ -143,6 +150,10 @@ def kSZ_conv(beta,betaz,llt,llx,ult,ulx,st,sx,rel=True):
     return tarr, xarr, farr
 
 def ksz_beta_terms(beta, betaz, thetae, X):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
 
 #    beta = v / szcv['c']  # v should be in m/s
     SH  = (np.exp(X/2)-np.exp(-X/2))/2
@@ -220,6 +231,10 @@ def ksz_beta_terms(beta, betaz, thetae, X):
     
     
 def ksz_C_terms(beta, betaz, thetae, X):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
 
 #    beta = v / szcv['c']  # v should be in m/s
     SH  = (np.exp(X/2)-np.exp(-X/2))/2
@@ -264,6 +279,10 @@ def ksz_C_terms(beta, betaz, thetae, X):
     return result
 
 def ksz_D_terms(beta, betaz, thetae, X):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
     
     SH  = (np.exp(X/2)-np.exp(-X/2))/2
     CH  = (np.exp(X/2)+np.exp(-X/2))/2
@@ -302,6 +321,10 @@ def ksz_D_terms(beta, betaz, thetae, X):
     return result
 
 def create_arrs_nonrel(beta,betaz,thetae,x,tarr=None,xarr=None,farr=None):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
 
     factor = x**3 / (np.exp(x) - 1.0)       # Equation 2.16 in Nozawa+ 2000
     K1 = x*np.exp(x)/(np.exp(x)-1)
@@ -318,6 +341,10 @@ def create_arrs_nonrel(beta,betaz,thetae,x,tarr=None,xarr=None,farr=None):
     return tarr, xarr, farr
 
 def create_arrs_rel(beta,betaz,thetae,x,tarr=None,xarr=None,farr=None):
+    """
+    Legacy code which works, but needs to be documented. (On the to-do list).
+
+    """
 
     factor = x**3 / (np.exp(x) - 1.0)       # Equation 2.16 in Nozawa+ 2000
     dnn = ksz_beta_terms(beta, betaz, thetae, x) +\
