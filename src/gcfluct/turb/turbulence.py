@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
 from astropy.units import Quantity
 from numpy.typing import NDArray
 
-
-
 def nelson_alpha(rads,r200m,A=0.452,B=0.841,gNT=1.628):
     
     """

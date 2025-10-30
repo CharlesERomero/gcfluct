@@ -13,7 +13,7 @@
 
 # Directories #
 ###############
-excised/
+excised/*
 
 # Specific files
 tutorials/MIDAS_powerSpectra.ipynb

@@ -3,9 +3,10 @@ from astropy.io import fits
 from scipy.special import gamma
 import astropy.units as u
 from numpy.typing import NDArray
-from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union, TypeAlias
 from astropy.units import Quantity, UnitBase
 import warnings
+Floating: TypeAlias = Union[float, np.float32, np.float64]
 
 #import gcfluct.gc.selfsimilar_gc as ssgc
 from gcfluct.gc.selfsimilar_gc import SS_Model
@@ -18,40 +19,40 @@ class SpecDeproj:
     ----------
     gc_model : SS_Model
         A class which models a galaxy cluster, especially under an assumption of self-similarity.
-    z_step : np.floating
+    z_step : Floating
         Step size long the line of sight, in kpc.
-    z_extent : np.floating
+    z_extent : Floating
         Maximum depth along the line of sight: |z| < z_extent with onject center located at z=0, in kpc.
-    z_array : NDArray[np.floating]
+    z_array : NDArray[Floating]
         Array of z-values (along the line of sight), in kpc.
-    kz : NDArray[np.floating]
+    kz : NDArray[Floating]
         Array of wavenumber values along the line of sight (z-axis). Units are inverse kpc.
-    pos_kz : NDArray[np.floating]
+    pos_kz : NDArray[Floating]
         Array of positive wavenumber values along the line of sight (z-axis). Units are inverse kpc.
-    dkz : np.floating
+    dkz : Floating
         Step size of wavenumbers long the line of sight. Units are inverse kpc.
-    sz_windows : NDArray[np.floating]
+    sz_windows : NDArray[Floating]
         2D array of the window function pertaining to the SZ model with the gc_model attribute.
         The shape is (N_sky, N_los), where N_sky is the number of radial points in the plane of the
         sky and N_los is the number of points along the line of sight. Units are inverse kpc.
-    sz_tilde_pow : NDArray[np.floating]
+    sz_tilde_pow : NDArray[Floating]
         2D array of the square of the Fourier transform of the window function pertaining to the
         SZ model with the gc_model attribute.
         The shape is (N_sky, N_los), where N_sky is the number of radial points in the plane of the
         sky and N_los is the number of points along the line of sight. Unitless.
-    sz_integ_ns : NDArray[np.floating]
+    sz_integ_ns : NDArray[Floating]
         1D array of sz_tilde_pow integrated along k_z. For a given line of sight P_2D = N * P_3D, where the
         equivalence is an approximation that holds best at high k (smaller scales.) Units are inverse kpc.
-    xr_windows : NDArray[np.floating]
+    xr_windows : NDArray[Floating]
         2D array of the window function pertaining to the X-ray model with the gc_model attribute.
         The shape is (N_sky, N_los), where N_sky is the number of radial points in the plane of the
         sky and N_los is the number of points along the line of sight. Units are inverse kpc.
-    xr_tilde_pow : NDArray[np.floating]
+    xr_tilde_pow : NDArray[Floating]
         2D array of the square of the Fourier transform of the window function pertaining to the
         X-ray model with the gc_model attribute.
         The shape is (N_sky, N_los), where N_sky is the number of radial points in the plane of the
         sky and N_los is the number of points along the line of sight. Unitless.
-    xr_integ_ns : NDArray[np.floating]
+    xr_integ_ns : NDArray[Floating]
         1D array of xr_tilde_pow integrated along k_z. For a given line of sight P_2D = N * P_3D, where the
         equivalence is an approximation that holds best at high k (smaller scales.) Units are inverse kpc.
     spec_model: Optional[PSfromImages]
@@ -59,11 +60,11 @@ class SpecDeproj:
     spec_observed: Optional[ImagesFromPS]
         A class relevant to an image and measuring power spectra on the image.
 
-    window : NDArray[np.floating]
+    window : NDArray[Floating]
         A single window (along a single LOS, either SZ or X-ray) as selected by the user.
-    tilde_pow : NDArray[np.floating]
+    tilde_pow : NDArray[Floating]
         The square of the Fourier transform of the selected window.
-    integ_n : np.floating
+    integ_n : Floating
         The integrated value of tilde_pow over k_z.
 
 
@@ -103,9 +104,9 @@ class SpecDeproj:
         ----------
         gc_model : SS_Model
             A class which models a galaxy cluster, especially under an assumption of self-similarity.
-        extent500 : np.floating
+        extent500 : Floating
             Along the line of sight, make calculations with |z| < extent500 * R500
-        step500 : np.floating
+        step500 : Floating
             Along the line of sight, the step size relative to R500.
         spec_model : Optional[ImagesFromPS]
             A class which models a parameterized power spectrum.
@@ -192,23 +193,24 @@ class SpecDeproj:
             self._spec_obs_sz = sz
 
     
-    def _get_rad_mat(self) -> Tuple[NDArray[np.floating],NDArray[np.floating],NDArray[np.floating]] :
+    def _get_rad_mat(self) -> Tuple[NDArray[Floating],NDArray[Floating],NDArray[Floating]] :
         """
         A little helper method to get 2D arrays of radii for array-based computation.
 
         Returns
         -------
-        expr : Tuple[NDArray[np.floating],NDArray[np.floating],NDArray[np.floating]]
+        expr : Tuple[NDArray[Floating],NDArray[Floating],NDArray[Floating]]
            rad_mat is the 2-dimensional array of the 3D radii
            sky_mat is the 2-dimensional array of the plane-of-sky distance (radii).
            los_mat is the 2-dimensional array of the distance along the line of sight.
         """
 
-        theta_sky = self.gc_model.rads.to("kpc") # Keep as quantity
-        z_los = self.z_array * u.kpc
-        
-        sky_mat = np.repeat([theta_sky], z_los.size, axis=0).transpose()
-        los_mat = np.repeat([z_los], theta_sky.size, axis=0)
+        theta_sky = self.gc_model.rads.to("kpc").value  # Just take the value
+        z_los = self.z_array
+
+        # Numpy will clobber the units, i.e. Quantity type
+        sky_mat = np.repeat([theta_sky], z_los.size, axis=0).transpose() * u.kpc
+        los_mat = np.repeat([z_los], theta_sky.size, axis=0) * u.kpc
 
         #print(sky_mat.shape,los_mat.shape)
         #import pdb;pdb.set_trace()
@@ -230,14 +232,15 @@ class SpecDeproj:
         
         rad_mat, sky_mat, los_mat = self._get_rad_mat()        
         y_mat = np.repeat([self.gc_model.y_prof], self.z_array.size, axis=0).transpose()
-        pres_mat = self.gc_model.gnfw(rad_mat) # Pressure matrix
+        pres_mat = self.gc_model.gnfw(radii=rad_mat) # Pressure matrix
 
-        self.sz_windows = (pres_mat*self.gc_model._p2invkpc).decompose().value / y_mat
+        self.sz_windows = (pres_mat*self.gc_model._p2invkpc).to("kpc**-1").value / y_mat
 
         # axis=-1, is numpy's default behavior. But for explicity:
-        tilde_mat = np.fft.fft(self.sz_windows,axis=1)*self.z_step
+        tilde_mat = np.fft.fft(self.sz_windows,axis=1)*self.z_step * u.kpc
         self.sz_tilde_pow = np.abs(tilde_mat**2)
-        self.sz_integ_ns = np.sum(self.sz_tilde_pow,axis=1) * self.dkz
+        self.sz_integ_ns = np.sum(self.sz_tilde_pow,axis=1) * self.dkz / u.kpc
+
         
     def set_xr_windows(self):
         """
@@ -251,9 +254,9 @@ class SpecDeproj:
         """
 
         rad_mat, sky_mat, los_mat = self._get_rad_mat()
-        theta_kpc = self.gc_model.xr_theta_c *60 * self.gc_model.kpcperas
-        r3d_scaled = (rad_mat/theta_kpc)
-        r2d_scaled = (sky_mat/theta_kpc)
+        theta_kpc = self.gc_model.xr_theta_c *60 * self.gc_model.kpcperas * u.kpc
+        r3d_scaled = (rad_mat/theta_kpc).decompose().value
+        r2d_scaled = (sky_mat/theta_kpc).decompose().value
         emmisivity = (1.0 + (r3d_scaled)**2)**(-3.0*self.gc_model.xr_beta)          # 
         surface_b = (1.0 + (r2d_scaled)**2)**(0.5 -3.0*self.gc_model.xr_beta)      # Recalculating...kind of
         betanorm = gamma(3*self.gc_model.xr_beta-0.5)*gamma(0.5) / gamma(3*self.gc_model.xr_beta) 
@@ -261,9 +264,9 @@ class SpecDeproj:
         self.xr_windows = emmisivity / (betanorm*self.gc_model.xr_beta*theta_kpc*surface_b)   # inverse kpc
         
         # axis=-1, is numpy's default behavior. But for explicity:
-        tilde_mat = np.fft.fft(self.xr_windows,axis=1)*self.z_step
+        tilde_mat = np.fft.fft(self.xr_windows,axis=1)*self.z_step * u.kpc
         self.xr_tilde_pow = np.abs(tilde_mat**2)
-        self.xr_integ_ns = np.sum(self.xr_tilde_pow,axis=1) * self.dkz
+        self.xr_integ_ns = np.sum(self.xr_tilde_pow,axis=1) * self.dkz / u.kpc
 
     def set_windows_manual(self,rad_in,thermo_prof,sb_prof,sz=True):
         """
@@ -281,23 +284,23 @@ class SpecDeproj:
         # will be negligible for foreseeable values (< 10 R_500). In principle the user could change this and cause problems.
         #####################################################################################################################
         thermo_mat = np.interp(np.log(rad1d),np.log(rad_in.ravel()),np.log(thermo_prof.ravel()),right=-np.inf)
-        thermo_mat = np.exp(thermo_mat.reshape(rad_mat.shape)) * u.keV / u.cm**3 # Add units in.
+        thermo_mat = np.exp(thermo_mat.reshape(rad_mat.shape)) 
         del rad1d # cleanup
 
         sb_mat = np.repeat([sb_prof], self.z_array.size, axis=0).transpose()
 
         windows = thermo_mat / sb_mat
         # axis=-1, is numpy's default behavior. But for explicity:
-        tilde_mat = np.fft.fft(windows,axis=1)*self.z_step
+        tilde_mat = np.fft.fft(windows,axis=1)*self.z_step * u.kpc
 
         if sz:
             self.sz_windows = windows
             self.sz_tilde_pow = np.abs(tilde_mat**2)
-            self.sz_integ_ns = np.sum(self.tilde_pow,axis=1) * self.dkz
+            self.sz_integ_ns = np.sum(self.tilde_pow,axis=1) * self.dkz / u.kpc
         else:
             self.xr_windows = windows
             self.xr_tilde_pow = np.abs(tilde_mat**2)
-            self.xr_integ_ns = np.sum(self.tilde_pow,axis=1) * self.dkz
+            self.xr_integ_ns = np.sum(self.tilde_pow,axis=1) * self.dkz / u.kpc
             
     def _deselect_window(self):
         """
@@ -318,7 +321,7 @@ class SpecDeproj:
 
         Parameters
         ----------
-        radius : np.floating
+        radius : Floating
             A scalar (not an iterable); the radius (in kpc, as a value) at which the window and corresponding quantities
             are desired.
         sz : bool
@@ -339,7 +342,7 @@ class SpecDeproj:
 
     def return_integ_nmap(self,
                           use_obs_spec : bool = True
-                          ) -> NDArray[np.floating]:
+                          ) -> NDArray[Floating]:
         """
         Calculates a grid (map) of N = int( |W^2| dkz ) values that can be used to rescale an image such
         that one directly computes a deprojected power spectrum. This requires that the attribute
@@ -353,7 +356,7 @@ class SpecDeproj:
         
         Returns
         -------
-        nmap : NDArray[np.floating]
+        nmap : NDArray[Floating]
             A map of N values (based on
         """
                 
@@ -386,22 +389,22 @@ class SpecDeproj:
     ##########################################################################################
         
     def theory_projection(self,
-                          k_out: Optional[NDArray[np.floating]] = None
-                          ) -> NDArray[np.floating]:
+                          k_out: Optional[NDArray[Floating]] = None
+                          ) -> NDArray[Floating]:
         """
         Performs the full power spectrum projection (integration) from the 3D power spectrum to its
         2D counterpart. This method requires that the attribute spec_model is set.
 
         Parameters
         ----------
-        k_out : Optional[NDArray[np.floating]]
+        k_out : Optional[NDArray[Floating]]
             An 1D array of output wavenumbers at which the projected spectrum is computed. If None, uses
             the wavenumbers at which an observed spectrum is computed via the Arevalo (2012) method for
             an input image. The latter case requires that the attribute spec_observed is set.
 
         Returns
         -------
-        p2d : NDArray[np.floating]
+        p2d : NDArray[Floating]
             The projected (P2D) power spectrum at wavenumbers k_out if set, otherwise at wavenumbers at
             spec_model.a12_kn.
         """
@@ -428,9 +431,9 @@ class SpecDeproj:
         return p2d
     
     def _taper_window_z(self,
-                        zoff: np.floating,
-                        zon: np.floating = 0,
-                        width: np.floating = 2,
+                        zoff: Floating,
+                        zon: Floating = 0,
+                        width: Floating = 2,
                         gentle: bool = True,
                         use_tukey: bool = True):
         """
@@ -442,13 +445,13 @@ class SpecDeproj:
 
         Parameters
         ----------
-        zoff : np.floating
+        zoff : Floating
            The depth (along the z-axis) at which the gas is no longer characterized by a given
            power spectrum. That is, when to taper off the window.
-        zon : np.floating
+        zon : Floating
            If zon > 0, then for |z| < zon, it is taken that the gas is not characterized by a
            given power spectrum and the window will taper on at zon. Default is 0, i.e. no "turn-on" depth.
-        width : np.floating
+        width : Floating
            Roughly half the number of array elements (indices traversed) to complete a taper (from 1 to 0 or
            vice versa). Default is 2.
         gentle : bool

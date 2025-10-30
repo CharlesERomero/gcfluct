@@ -11,7 +11,9 @@ from astropy.coordinates import Angle #
 from astropy.cosmology import FlatLambdaCDM
 
 from numpy.typing import NDArray
-from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union, TypeAlias
+
+Floating: TypeAlias = Union[float, np.float32, np.float64]
 
 # Now project/repo modules
 import gcfluct.utils.utility_functions as uf
@@ -28,13 +30,13 @@ class Cluster:
     
     Attributes
     ----------
-    arcminutes500 : np.floating
+    arcminutes500 : Floating
         Angular size of R_500 for the assumed cosmology.
     d_ang : Quantity
         Angular distance, with units of length.
     dens_crit : Quantity
         Critical density (mass per volume) of the Universe.
-    z : np.floating
+    z : Floating
         Redshift of the cluster.
     m500 : Quantity
         Mass at density contrast of 500 of a cluster.
@@ -60,18 +62,18 @@ class Cluster:
     """
 
     def __init__(self,
-                 z: np.floating,
+                 z: Floating,
                  m500: Optional[Quantity] = None,
                  r500: Optional[Quantity] = None,
-                 H0: np.floating = 70.0,
-                 Om0: np.floating = 0.3,
-                 Tcmb0: np.floating = 2.725):
+                 H0: Floating = 70.0,
+                 Om0: Floating = 0.3,
+                 Tcmb0: Floating = 2.725):
         """
         Initialize the Cluster class. Set redshift, mass (or corresponding radius), and underlying cosmological parameters.
         
         Parameters
         ----------
-        z : np.floating
+        z : Floating
             The redshift of the target cluster
         m500 : Optional[Quantity]
             The mass (M_500) of the cluster as a quantity with units of mass.
@@ -79,11 +81,11 @@ class Cluster:
         r500 : Optional[Quantity]
             The radius (R_500) of the cluster as a quantity with units of length.
             If not specified then m500 must be specified!.
-        H0 : np.floating
+        H0 : Floating
             The Hubble parameter at z=0 in km/s/Mpc. Default is 70.
-        Om0 : np.floating
+        Om0 : Floating
             The matter density fraction (Omega_matter) at z=0. Default is 0.3
-        Tcmb0 : np.floating
+        Tcmb0 : Floating
             The temperature of the CMB at z=0 (in Kelvin). Default is 2.725
         """
         
@@ -133,7 +135,7 @@ class Cluster:
 
         Returns
         -------
-        r500ang : np.floating
+        r500ang : Floating
             R_500 as an angle on the sky, in radians.
         """
     
@@ -150,14 +152,16 @@ class Cluster:
         p500 : Quantity
             P_500 in units of pressure.
         """
-        p500 = (1.65 * 10**-3) * ((self._h)**(8./3)) * ((
-            self.m500 * self._h70)/ ((3*10**14 * self._h70**(-1)) * const.M_sun)
-            )**(2./3+0.11) * self._h70**2 * u.keV / u.cm**3
+
+        preface = (1.65 * 10**-3) * ((self._h)**(8./3))
+        mass_pivot = ( self.m500 / ( 3*10**14 * self._h70**(-1) * const.M_sun) ).decompose().value
+        mass_scaling = mass_pivot**(2./3+0.11)
+        p500 = preface * mass_scaling * self._h70**2 * u.keV / u.cm**3
         return p500
                                        
     def m2r_delta(self,
                   mass: Optional[Quantity] = None,
-                  delta: Union[np.floating,int] = 500
+                  delta: Union[Floating,int] = 500
                   ) -> Optional[Quantity]:
         """
         Calculates the R_delta for a given overdensity, delta, with respect to the critical density of the universe (at the cluster redshift).
@@ -166,7 +170,7 @@ class Cluster:
         ----------
         mass : Optional[Quantity]
             If no mass is specified, uses attribute m500.
-        delta : Union[np.floating,int]
+        delta : Union[Floating,int]
             The density contrast of interest (Valid for any value so long as the input mass matches that overdensity).
         
         Returns
@@ -183,7 +187,7 @@ class Cluster:
 
     def r2m_delta(self,
                   radius: Optional[Quantity] = None,
-                  delta: Union[np.floating,int]=500
+                  delta: Union[Floating,int]=500
                   ) -> Optional[Quantity]:
         """
         Calculates the M_delta for a given overdensity, delta, with respect to the critical density of the universe (at the cluster redshift).
@@ -192,7 +196,7 @@ class Cluster:
         ----------
         radius : Optional[Quantity]
             If no radius is specified, uses attribute r500.
-        delta : Union[np.floating,int]
+        delta : Union[Floating,int]
             The density contrast of interest (Valid for any value so long as the input radius matches that overdensity).
         
         Returns
@@ -219,12 +223,12 @@ class Cluster:
         ----------
         y_delta : np.foating
             The Y_sph value at the given overdensity, in units of square Mpc.
-        delta : Union[np.floating,int]
+        delta : Union[Floating,int]
             The density contrast of interest (Valid for any value so long as the input radius matches that overdensity).
         
         Returns
         -------
-        m_delta : np.floating
+        m_delta : Floating
             m_delta in units of M_sun.
         """
         d_a = self.d_ang.to('Mpc').value
@@ -244,12 +248,12 @@ class Cluster:
         ----------
         m_delta : np.foating
             The Y_sph value at the given overdensity, in units of square Mpc.
-        delta : Union[np.floating,int]
+        delta : Union[Floating,int]
             The density contrast of interest (Valid for any value so long as the input radius matches that overdensity).
         
         Returns
         -------
-        y_delta : np.floating
+        y_delta : Floating
             m_delta in units of M_sun.
         """
 
@@ -269,13 +273,13 @@ class SS_Model(Cluster):
     
     Attributes
     ----------
-    arcminutes500 : np.floating
+    arcminutes500 : Floating
         Angular size of R_500 for the assumed cosmology.
     d_ang : Quantity
         Angular distance, with units of length.
     dens_crit : Quantity
         Critical density (mass per volume) of the Universe.
-    z : np.floating
+    z : Floating
         Redshift of the cluster.
     m500 : Quantity
         Mass at density contrast of 500 of a cluster.
@@ -287,16 +291,16 @@ class SS_Model(Cluster):
         relation is presented. Default is "A10".
     gnfw_pars : dict
         A dictionary which contains the gNFW parameters (p0, c500, a, b, and c).
-    rads : NDArray[np.floating]
+    rads : NDArray[Floating]
         Array of radial distances (in kpc)
-    pixarc : np.floating
+    pixarc : Floating
     npix : int
 
-    rmat : NDArray[np.floating]
-    y_map : NDArray[np.floating]
-    xrsb_map : NDArray[np.floating]
-    smoothedy_maps : NDArray[np.floating]
-    smoothedy_profile : NDArray[np.floating]
+    rmat : NDArray[Floating]
+    y_map : NDArray[Floating]
+    xrsb_map : NDArray[Floating]
+    smoothedy_maps : NDArray[Floating]
+    smoothedy_profile : NDArray[Floating]
 
     Methods
     -------
@@ -317,23 +321,23 @@ class SS_Model(Cluster):
     """
     
     def __init__(self,
-                 z: np.floating,
+                 z: Floating,
                  m500: Optional[Quantity] = None,
                  r500: Optional[Quantity] = None,
-                 H0: np.floating = 70.0,
-                 Om0: np.floating = 0.3,
-                 Tcmb0: np.floating = 2.725,
+                 H0: Floating = 70.0,
+                 Om0: Floating = 0.3,
+                 Tcmb0: Floating = 2.725,
                  rads: Optional[NDArray] = None,
-                 npts: np.floating = 500,
-                 r_max: np.floating = 20,
-                 lg_rmin: np.floating = -0.5,
+                 npts: Floating = 500,
+                 r_max: Floating = 20,
+                 lg_rmin: Floating = -0.5,
                  ym_rel='A10'):
         """
         Initialize the Cluster class. Set redshift, mass (or corresponding radius), and underlying cosmological parameters.
         
         Parameters
         ----------
-        z : np.floating
+        z : Floating
             The redshift of the target cluster
         m500 : Optional[Quantity]
             The mass (M_500) of the cluster as a quantity with units of mass.
@@ -341,19 +345,19 @@ class SS_Model(Cluster):
         r500 : Optional[Quantity]
             The radius (R_500) of the cluster as a quantity with units of length.
             If not specified then m500 must be specified!.
-        H0 : np.floating
+        H0 : Floating
             The Hubble parameter at z=0 in km/s/Mpc. Default is 70.
-        Om0 : np.floating
+        Om0 : Floating
             The matter density fraction (Omega_matter) at z=0. Default is 0.3
-        Tcmb0 : np.floating
+        Tcmb0 : Floating
             The temperature of the CMB at z=0 (in Kelvin). Default is 2.725
         rads : Optional[Quantity]
             If specified, an array of radii at which to calculate 3D quantities (pressure and emissivity), in kpc.
         npts : int
             If rads is not specified, this determines the number of elements in the rads array that will be generated.
-        r_max : Union[np.floating,int]
+        r_max : Union[Floating,int]
             What factor of R_500 to treat as the maximum radial extent for 3D profiles. Default is 20.
-        lg_rmin : np.floating
+        lg_rmin : Floating
             The log (base 10) of the minimum radius (in kpc) to use in constructing a radial profile. Default is -0.5.
         ym_rel : str
             A short string with letter and last two digits of the year as a shorthand for the paper in which the
@@ -365,8 +369,8 @@ class SS_Model(Cluster):
                                        
         Thom_cross = (spconst.value("Thomson cross section") *u.m**2).to("cm**2")
         mec2 = (const.m_e *const.c**2).to("keV") # Electron mass times speed of light squared, in keV
-        self._pdl2y = Thom_cross * self.d_ang.to("cm") / mec2 * u.cm**3
-        self._p2invkpc = Thom_cross * u.kpc.to("cm") / mec2 * u.cm**3
+        self._pdl2y = Thom_cross * self.d_ang.to("cm") / (mec2)
+        self._p2invkpc = Thom_cross / (mec2)   # * u.kpc.to("cm")
         lg_rmax = np.log10((r_max*self.r500/u.kpc).decompose().value) # when using kpc
         if rads is None:
             rads = np.logspace(lg_rmin,lg_rmax,npts) * u.kpc # 1 Mpc ~ r500, usually
@@ -411,10 +415,10 @@ class SS_Model(Cluster):
         self.rmat = imagefromps.rmat        
         
     def set_ss_maps(self,
-                    n_r500: Union[np.floating,int] = 3.0,
-                    pix_arcsec: Union[np.floating,int] = 1.0,
-                    cx: Optional[Union[np.floating,int]] = None,
-                    cy: Optional[Union[np.floating,int]] = None,
+                    n_r500: Union[Floating,int] = 3.0,
+                    pix_arcsec: Union[Floating,int] = 1.0,
+                    cx: Optional[Union[Floating,int]] = None,
+                    cy: Optional[Union[Floating,int]] = None,
                     force_integer: bool = False,
                     imagefromps: Optional[ImagesFromPS] = None):
 
@@ -430,11 +434,11 @@ class SS_Model(Cluster):
         self.smoothedxrsb_profile = None
         
     def set_gnfw_profile(self,
-                       c500: np.floating = 1.177,
-                       p0: np.floating = 8.403,
-                       a: np.floating = 1.0510,
-                       b: np.floating = 5.4905,
-                       c: np.floating = 0.3081):
+                       c500: Floating = 1.177,
+                       p0: Floating = 8.403,
+                       a: Floating = 1.0510,
+                       b: Floating = 5.4905,
+                       c: Floating = 0.3081):
         """
         Here is a block of methods. I might want to change the functionality so that I could make a    
         Compton-y profile (set_yprof) in one command after updating gnfw pars.                   
@@ -446,15 +450,15 @@ class SS_Model(Cluster):
 
         Parameters
         ----------
-        c500 : np.floating
+        c500 : Floating
             The concentration parameter
-        p0 : np.floating
+        p0 : Floating
             The pressure normalization, on top of the unversal (scaled) pressure
-        a : np.floating
+        a : Floating
             The turnover rate in (seen as :math:`\\alpha`in some references)
-        b : np.floating
+        b : Floating
             The outer pressure profile slope (seen as :math:`\\beta`in some references)
-        c : np.floating
+        c : Floating
             The inner pressure profile slope (seen as :math:`\\gamma`in some references)
         """
         self._set_gnfw_pars()
@@ -463,11 +467,11 @@ class SS_Model(Cluster):
         self.set_yprof()
         
     def _set_gnfw_pars(self,
-                       c500: np.floating = 1.177,
-                       p0: np.floating = 8.403,
-                       a: np.floating = 1.0510,
-                       b: np.floating = 5.4905,
-                       c: np.floating = 0.3081):
+                       c500: Floating = 1.177,
+                       p0: Floating = 8.403,
+                       a: Floating = 1.0510,
+                       b: Floating = 5.4905,
+                       c: Floating = 0.3081):
         """
         The user should generally not access this by itself, as one could update the gNFW parameters without
         updating other relevant model products. set_gnfw_model() groups all the products together. Recall the form of
@@ -479,40 +483,40 @@ class SS_Model(Cluster):
         
         Parameters
         ----------
-        c500 : np.floating
+        c500 : Floating
             The concentration parameter
-        p0 : np.floating
+        p0 : Floating
             The pressure normalization, on top of the unversal (scaled) pressure
-        a : np.floating
+        a : Floating
             The turnover rate in (seen as :math:`\\alpha`in some references)
-        b : np.floating
+        b : Floating
             The outer pressure profile slope (seen as :math:`\\beta`in some references)
-        c : np.floating
+        c : Floating
             The inner pressure profile slope (seen as :math:`\\gamma`in some references)
         """
 
         self.gnfw_pars = {"c500":c500, "p0":p0, "a":a, "b":b, "c":c}        
         
     def _set_xyrmat(self,
-                    n_r500: Union[np.floating,int] = 3.0,
-                    pix_arcsec: Union[np.floating,int] = 1.0,
+                    n_r500: Union[Floating,int] = 3.0,
+                    pix_arcsec: Union[Floating,int] = 1.0,
                     pixunits : UnitBase = None,
-                    cx: Optional[Union[np.floating,int]] = None,
-                    cy: Optional[Union[np.floating,int]] = None,
+                    cx: Optional[Union[Floating,int]] = None,
+                    cy: Optional[Union[Floating,int]] = None,
                     force_integer: bool = False):
         """
         Defines grids for maps to be made.
 
         Parameters
         ----------
-        n_r500 : Union[np.floating,int]
+        n_r500 : Union[Floating,int]
             How many factors of R500 to extend to in radius, along a given axis. Default is 3.0 such that the entire image
             will be 6 R_500 on a side (and sqrt(2) more along the diagonal)
-        pix_arcsec : np.floating
+        pix_arcsec : Floating
         pixunits : BaseUnit
-        cx : Optional[Union[np.floating,int]]
+        cx : Optional[Union[Floating,int]]
             If provided, the center of the target, in pixel coordinates, along axis=0
-        cy : Optional[Union[np.floating,int]]
+        cy : Optional[Union[Floating,int]]
             If provided, the center of the target, in pixel coordinates, along axis=1
         force_integer : bool
             If cx and cy are not provided, this would for cx and cy to be an integer. Default is False.
@@ -547,6 +551,7 @@ class SS_Model(Cluster):
         self._xymat = (x,y) # Tuple of two 2D arrays (maps)
         self.rmat = np.sqrt(x**2 + y**2)
 
+
     def gnfw(self, radii : Quantity = None) -> Quantity:
         """
         Computes the gNFW profile:
@@ -569,17 +574,19 @@ class SS_Model(Cluster):
 
         if radii is None:
             radii = self.rads
+
         p_norm = self._p500 * self._h70**-1.5 * self.gnfw_pars["p0"]   # self.p0
         r_p = self.r500 / self.gnfw_pars["c500"]
         r_scaled =  (radii/r_p).decompose().value
-        #pressure = (p_norm / (((r_scaled)**self.c)*((1 + (r_scaled)**self.a))**((self.b - self.c)/self.a)))
+        # pressure = (p_norm / (((r_scaled)**self.c)*((1 + (r_scaled)**self.a))**((self.b - self.c)/self.a)))
 
         core_pressure = r_scaled**self.gnfw_pars["c"] 
         outer_exponent = (self.gnfw_pars["b"] - self.gnfw_pars["c"])/self.gnfw_pars["a"] # (b-c)/a
         bulk = ( 1 + r_scaled**self.gnfw_pars["a"] )**outer_exponent
-        pressure = p_norm / bulk        
-
+        pressure = p_norm / (core_pressure * bulk)        
+        
         return pressure
+
 
     def set_pressure_profile_gnfw(self):
         """
@@ -587,7 +594,8 @@ class SS_Model(Cluster):
         """
 
         self.pressure_prof = self.gnfw()
-    
+
+
     def set_ulPprof(self):
         """
         Rescales attribute pressure_prof to a unitless value and assigns this to attribute unitless_pressure_profile.
@@ -595,19 +603,21 @@ class SS_Model(Cluster):
 
         self.unitless_pressure_profile = (self.pressure_prof * self._pdl2y).decompose().value
 
+
     def set_yprof(self,nr500max=10):
         """
         Calculates and sets y_prof
 
         Parameters
         ----------
-        nr500max : Union[np.floating,int]
+        nr500max : Union[Floating,int]
             To what depth, along the line of sight (LOS) do we use to calculate the Compton y profile, relative to R500?
             The default is 10. (cf. Arnaud et al. 2010 used 5).
         """
 
         self.y_prof = ni.int_profile(self.radians, self.unitless_pressure_profile,self.radians,zmax=self._ang500*nr500max)
-    
+
+
     def set_ymap_from_gnfw(self):
         """
         From attribute y_prof, interpolates and sets attribute ymap.
@@ -617,15 +627,16 @@ class SS_Model(Cluster):
         flatymap = uf.grid_profile(self.radians,self.y_prof,self._xymat)
         self.y_map = flatymap.reshape((self._npix,self._npix))
 
+
     def set_gnfw_beam_smoothed_map(self,
-                               fwhm : np.floating = 10.0):
+                               fwhm : Floating = 10.0):
         """
         Smooths the Compton y map (y_map) by a single Gaussian, i.e. an instrument's beam (or PSF).
         Sets attribute smoothedy_maps, itself a dictionary; keys are a string-formating of FWHM
 
         Paramters
         ---------
-        fwhm : np.floating
+        fwhm : Floating
             The FWHM of a 2D Gaussian that approximates an instrument's beam.
         """
         
@@ -638,6 +649,7 @@ class SS_Model(Cluster):
         else:
             self.smoothedy_maps[dictkey] = smoothed
 
+
     def set_gnfw_beam_smoothed_y_prof(self,fwhm=10.0):
         """
         Creates a Compton-y profile of the same array size (same radii) as the unsmoothed profile,
@@ -646,7 +658,7 @@ class SS_Model(Cluster):
 
         Paramters
         ---------
-        fwhm : np.floating
+        fwhm : Floating
             The FWHM of a 2D Gaussian that approximates an instrument's beam.
         """
 
@@ -667,7 +679,7 @@ class SS_Model(Cluster):
 
     #####################################################################################
             
-    def calculate_y_cyl_prof(self) -> NDArray[np.floating]:
+    def calculate_y_cyl_prof(self) -> NDArray[Floating]:
         """
         While the user could do their own calculations by hand, let's provide an avenue for accurate calculations.
         
@@ -791,9 +803,9 @@ class SS_Model(Cluster):
 ##########################################################################################################################
 
 def get_aaa_bbb(ym_rel: str,
-                delta:Union[np.floating,int],
-                h70: np.floating=1.0
-                ) -> Tuple[np.floating,np.floating]:
+                delta:Union[Floating,int],
+                h70: Floating=1.0
+                ) -> Tuple[Floating,Floating]:
     """
     Basically just a repository (look-up table) of Y-M relations.
     ym_rel must be either:
@@ -809,14 +821,14 @@ def get_aaa_bbb(ym_rel: str,
     ----------
     ym_rel : str
         One of the strings as identified in the function description.
-    delta : Union[np.floating,int]
+    delta : Union[Floating,int]
         Must be either 500 or 2500. (No other relations are currently stored.)
-    h70 : np.floating
+    h70 : Floating
         The scaled (to 70 km/s/Mpc) Hubble parameter at z=0. Default is 1.0
 
     Returns
     -------
-    expr : Tuple[np.floating,np.floating]
+    expr : Tuple[Floating,Floating]
         A two-element tuple of parameters aaa,bbb for the relation provided in the description
     """
 
@@ -876,11 +888,11 @@ def get_aaa_bbb(ym_rel: str,
 
     return aaa,bbb
 
-def _get_YM_sys_err(logy:np.floating,
+def _get_YM_sys_err(logy:Floating,
                     ym_rel: str,
-                    delta:Union[np.floating,int] = 500,
-                    h70: np.floating = 1.0
-                    ) -> np.floating:
+                    delta:Union[Floating,int] = 500,
+                    h70: Floating = 1.0
+                    ) -> Floating:
     
     """
     Calculates the fractional uncertainty in a mass estimate due to the relation uncertainties.
@@ -888,18 +900,18 @@ def _get_YM_sys_err(logy:np.floating,
     
     Parameters
     ----------
-    logy : np.floating
+    logy : Floating
         Log10(Y_sphere) value (when Y is expressed in square Mpc).
     ym_rel : str
         One of the strings as identified in the function description.
-    delta : Union[np.floating,int]
+    delta : Union[Floating,int]
         Must be either 500 or 2500. (No other relations are currently stored.)
-    h70 : np.floating
+    h70 : Floating
         The scaled (to 70 km/s/Mpc) Hubble parameter at z=0. Default is 1.0
 
     Returns
     -------
-    xer : np.floating
+    xer : Floating
         The fractional uncertainty in the mass value based on reported Y-M relation uncertainties.
     """
     if delta == 500:

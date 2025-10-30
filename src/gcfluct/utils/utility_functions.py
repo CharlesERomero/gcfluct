@@ -1,9 +1,45 @@
 import numpy as np
 
 from numpy.typing import NDArray
-#from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
+from typing import Tuple, Union, TypeAlias
+Floating: TypeAlias = Union[float, np.float32, np.float64]
 
-def bin_two2Ds(independent,dependent,binsize=1,witherr=False,withcnt=False):
+
+def bin_two2Ds(independent: NDArray[Floating],
+               dependent: NDArray[Floating],
+               binsize: Union[Floating, int] = 1,
+               witherr: bool = False,
+               withcnt: bool = False
+               ) -> Tuple[NDArray[Floating], NDArray[Floating], NDArray[Floating], NDArray[Floating]]:
+
+    """
+    A function to bin X (independent) and Y (dependent) variables
+    based on X (and binsize).
+
+    Parameters
+    ----------
+    independent: NDArray[Floating]
+        The (2D) array of the independent variable
+    dependent: NDArray[Floating]
+        The (2D) array of the dependent variable
+    binsize: Union[Floating, int]
+        The binsize of the independent variable. Default is 1.
+    witherr: bool
+        Return the error on each bin? This is taken as the RMS within each bin. Default is False.
+    withcnt: bool
+        Return the count per bin? (How many elements are found within each bin). Default is False.
+
+    Returns
+    -------
+    abin: NDArray[Floating]
+        The binned abscissa (independent) variable.
+    obin: NDArray[Floating]
+        The binned ordinate (dependent) variable.
+    oerr: NDArray[Floating]
+        The binned error on the ordinate (dependent) variable. Zeros if witherr==False.
+    cnts: NDArray[Floating]
+        The binned counts on the ordinate (dependent) variable. Zeros if withcnts==False.
+    """
 
     flatin = independent.flatten()
     flatnt = dependent.flatten()
@@ -13,10 +49,10 @@ def bin_two2Ds(independent,dependent,binsize=1,witherr=False,withcnt=False):
     ordinate = flatnt[inds]
 
     nbins = int(np.ceil((np.max(abscissa) - np.min(abscissa))/binsize))
-    abin  = np.zeros(nbins)
-    obin  = np.zeros(nbins)
-    oerr  = np.zeros(nbins)
-    cnts  = np.zeros(nbins) 
+    abin = np.zeros(nbins)
+    obin = np.zeros(nbins)
+    oerr = np.zeros(nbins)
+    cnts = np.zeros(nbins)
     for i in range(nbins):
         blow = i*binsize
         gi = (abscissa >= blow)*(abscissa < blow+binsize)
@@ -27,9 +63,44 @@ def bin_two2Ds(independent,dependent,binsize=1,witherr=False,withcnt=False):
         if withcnt:
             cnts[i] = np.sum(gi)
 
-    return abin,obin,oerr,cnts
+    return abin, obin, oerr, cnts
 
-def two2Ds_binned(independent,dependent,bins,witherr=False,withcnt=False):
+
+def two2Ds_binned(independent: NDArray[Floating],
+                  dependent: NDArray[Floating],
+                  bins: NDArray[Floating],
+                  witherr: bool = False,
+                  withcnt: bool = False
+                  ) -> Tuple[NDArray[Floating], NDArray[Floating], NDArray[Floating], NDArray[Floating]]:
+
+    """
+    A function to bin X (independent) and Y (dependent) variables
+    based on X and specified bins (edges).
+
+    Parameters
+    ----------
+    independent: NDArray[Floating]
+        The (2D) array of the independent variable
+    dependent: NDArray[Floating]
+        The (2D) array of the dependent variable
+    binsize: Union[Floating, int]
+        The binsize of the independent variable. Default is 1.
+    witherr: bool
+        Return the error on each bin? This is taken as the RMS within each bin. Default is False.
+    withcnt: bool
+        Return the count per bin? (How many elements are found within each bin). Default is False.
+
+    Returns
+    -------
+    abin: NDArray[Floating]
+        The binned abscissa (independent) variable.
+    obin: NDArray[Floating]
+        The binned ordinate (dependent) variable.
+    oerr: NDArray[Floating]
+        The binned error on the ordinate (dependent) variable. Zeros if witherr==False.
+    cnts: NDArray[Floating]
+        The binned counts on the ordinate (dependent) variable. Zeros if withcnts==False.
+    """
 
     flatin = independent.flatten()
     flatnt = dependent.flatten()
@@ -39,10 +110,10 @@ def two2Ds_binned(independent,dependent,bins,witherr=False,withcnt=False):
     ordinate = flatnt[inds]
 
     nbins = len(bins)-1
-    abin  = np.zeros(nbins)
-    obin  = np.zeros(nbins)
-    oerr  = np.zeros(nbins)
-    cnts  = np.zeros(nbins) 
+    abin = np.zeros(nbins)
+    obin = np.zeros(nbins)
+    oerr = np.zeros(nbins)
+    cnts = np.zeros(nbins)
     for i in range(nbins):
         gi = (abscissa >= bins[i])*(abscissa < bins[i+1])
         if np.sum(gi) == 0:
@@ -56,206 +127,277 @@ def two2Ds_binned(independent,dependent,bins,witherr=False,withcnt=False):
             if withcnt:
                 cnts[i] = np.sum(gi)
 
-    return abin,obin,oerr,cnts
+    return abin, obin, oerr, cnts
 
-def bin_log2Ds(independent,dependent,nbins=10,witherr=False,withcnt=False):
+
+def bin_log2Ds(independent: NDArray[Floating],
+               dependent: NDArray[Floating],
+               nbins: int = 10,
+               witherr: bool = False,
+               withcnt: bool = False
+               ) -> Tuple[NDArray[Floating], NDArray[Floating], NDArray[Floating], NDArray[Floating]]:
+
+    """
+    A function to bin X (independent) and Y (dependent) variables
+    based on X and number of bins. Spacing is logarthmic and automatically inferred.
+
+    Parameters
+    ----------
+    independent: NDArray[Floating]
+        The (2D) array of the independent variable
+    dependent: NDArray[Floating]
+        The (2D) array of the dependent variable
+    binsize: Union[Floating, int]
+        The binsize of the independent variable. Default is 1.
+    witherr: bool
+        Return the error on each bin? This is taken as the RMS within each bin. Default is False.
+    withcnt: bool
+        Return the count per bin? (How many elements are found within each bin). Default is False.
+
+    Returns
+    -------
+    abin: NDArray[Floating]
+        The binned abscissa (independent) variable.
+    obin: NDArray[Floating]
+        The binned ordinate (dependent) variable.
+    oerr: NDArray[Floating]
+        The binned error on the ordinate (dependent) variable. Zeros if witherr==False.
+    cnts: NDArray[Floating]
+        The binned counts on the ordinate (dependent) variable. Zeros if withcnts==False.
+    """
 
     flatin = independent.flatten()
     flatnt = dependent.flatten()
-    inds   = flatin.argsort()
+    inds = flatin.argsort()
 
     abscissa = flatin[inds]
     ordinate = flatnt[inds]
 
-    #nbins = int(np.ceil((np.max(abscissa) - np.min(abscissa))/binsize))
-    agtz    = (abscissa > 0)
-    lgkmin  = np.log10(np.min(abscissa[agtz])*2.5)
-    lgkmax  = np.log10(np.max(abscissa))
-    bins  = np.logspace(lgkmin,lgkmax,nbins+1)
-    abin  = np.zeros(nbins)
-    obin  = np.zeros(nbins)
-    oerr  = np.zeros(nbins)
-    cnts  = np.zeros(nbins) 
-    for i,(blow,bhigh) in enumerate(zip(bins[:-1],bins[1:])):
+    agtz = (abscissa > 0)
+    lgkmin = np.log10(np.min(abscissa[agtz])*2.5)
+    lgkmax = np.log10(np.max(abscissa))
+    bins = np.logspace(lgkmin, lgkmax, nbins+1)
+    abin = np.zeros(nbins)
+    obin = np.zeros(nbins)
+    oerr = np.zeros(nbins)
+    cnts = np.zeros(nbins)
+    for i, (blow, bhigh) in enumerate(zip(bins[:-1], bins[1:])):
         gi = (abscissa >= blow)*(abscissa < bhigh)
-        abin[i]  = np.mean(abscissa[gi])
-        omean    = np.mean(ordinate[gi])
-        #abin[i]  = np.exp(np.mean(np.log(abscissa[gi])))
-        #Ord,sOrd = plfit(ordinate[gi],ordinate[gi],abscissa[gi],abin[i])
-        #Ord,sOrd = plfit(ordinate[gi],ordinate[gi]*0+omean,abscissa[gi],abin[i])
-        #obin[i]  = Ord*1.0
-        obin[i]   = omean
-        #obin[i]  = np.exp(np.mean(np.log(ordinate[gi])))
+        abin[i] = np.mean(abscissa[gi])
+        omean = np.mean(ordinate[gi])
+        obin[i] = omean
         if witherr:
             oerr[i] = np.exp(np.std(np.log(ordinate[gi]))) / np.sqrt(np.sum(gi))
-            #oerr[i]  = sOrd*1.0
         if withcnt:
             cnts[i] = np.sum(gi)
 
-    #print(abin)
-    #import pdb;pdb.set_trace()
+    return abin, obin, oerr, cnts
 
-    return abin,obin,oerr,cnts
 
-def plfit(y,sy,x,xp=0.0):
+def plfit(y: NDArray[Floating],
+          sy: NDArray[Floating],
+          x: NDArray[Floating],
+          xp: Floating = 0.0
+          ) -> Tuple[Floating, Floating, Floating, Floating]:
 
-    lny  = np.log(y)
+    lny = np.log(y)
     slny = sy/y
-    lnx  = np.log(x)
+    lnx = np.log(x)
 
-    N    = len(y)
-    #Del  = N * np.sum(lnx**2) - (np.sum(lnx)**2)
-    #A    = (np.sum(lnx**2)*np.sum(lny) - np.sum(lnx)*np.sum(lnx*lny))/Del
-    #B    = (N*np.sum(lnx*lny) - np.sum(lnx)*np.sum(lny))/Del
-    #sA   = slny * np.sqrt(np.sum(lnx**2)/Del)
-    #sB   = slny * np.sqrt(N/Del)
+    # N = len(y)
 
     wts = 1.0/slny**2
-    w   = np.sum(wts)
+    w = np.sum(wts)
     wxx = np.sum(wts*lnx**2)
-    wy  = np.sum(wts*lny)
-    wx  = np.sum(wts*lnx)
+    wy = np.sum(wts*lny)
+    wx = np.sum(wts*lnx)
     wxy = np.sum(wts*lnx*lny)
     Del = w*wxx - wx**2
-    A   = (wxx*wy - wx*wxy)/Del
-    B   = (w*wxy - wx*wy)/Del
-    sA  = np.sqrt( wxx / Del)
-    sB  = np.sqrt( w   / Del)
-    
+    A = (wxx*wy - wx*wxy)/Del
+    B = (w*wxy - wx*wy)/Del
+    sA = np.sqrt(wxx / Del)
+    sB = np.sqrt(w / Del)
+
     if xp > 0.0:
         lnxp = np.log(xp)
 
         lnS = A + B*lnxp
-        S   = np.exp(lnS)
-        #sS  = (sA + sB*lnxp)*S
-        sS  = np.sqrt(sA**2 + (sB*lnxp)**2)*S
-        #sS  = np.abs(sA - sB*lnxp)*S
-        #print(sA,sB,lnxp)
-        #import pdb;pdb.set_trace()
-        return S,sS
+        S = np.exp(lnS)
+        sS = np.sqrt(sA**2 + (sB*lnxp)**2)*S
 
-    return A,B, sA, sB
+        return S, sS
 
-def grid_profile(rads, profile, xymap, geoparams=[0,0,0,1,1,1,0,0],myscale=1.0,axis='z'):
+    return A, B, sA, sB
+
+
+def grid_profile(rads: NDArray[Floating],
+                 profile: NDArray[Floating],
+                 xymap: Tuple[NDArray[Floating], NDArray[Floating]],
+                 geoparams: list = [0, 0, 0, 1, 1, 1, 0, 0],
+                 myscale: Floating = 1.0,
+                 axis: str = 'z',
+                 xyinas: bool = True,
+                 ) -> NDArray[Floating]:
     """
     Return a tuple of x- and y-coordinates.
 
     Parameters
     ----------
-    rads : class:`numpy.ndarray`
-       An array of radii (same units as xymap)
-    profile : class:`numpy.ndarray`
-       A radial profile of surface brightness.
-    xymap : tuple(class:`numpy.ndarray`)
-       A tuple of x- and y-coordinates
+    rads : NDArray[Floating]
+        An array of radii (same units as xymap)
+    profile : NDArray[Floating]
+        A radial profile of surface brightness.
+    xymap : tuple(NDArray[Floating])
+        A tuple of x- and y-coordinates
     geoparams : array-like
-       [X_shift, Y_shift, Rotation, Ella*, Ellb*, Ellc*, Xi*, Opening Angle]
+        [X_shift, Y_shift, Rotation, Ella*, Ellb*, Ellc*, Xi*, Opening Angle]
     myscale : float
-       Generally best to leave as unity.
+        Generally best to leave as unity.
     axis : str
-       Which axis are you projecting along.
+        Which axis are you projecting along.
+    xyinas : bool
+        Is the xymap in arcseconds. Default is True.
 
     Returns
     -------
-    mymap : class:`numpy.ndarray`
-       An output map
+    mymap : NDArray[Floating]
+        An output map
 
     """
 
-    ### Get new grid:
-    arc2rad =  4.84813681109536e-06 # arcseconds to radians
-    (x,y) = xymap
-    x,y = rot_trans_grid(x,y,geoparams[0],geoparams[1],geoparams[2]) # 0.008 sec per call
-    x,y = get_ell_rads(x,y,geoparams[3],geoparams[4])                # 0.001 sec per call
+    # Get new grid:
+    arc2rad = 4.84813681109536e-06  # arcseconds to radians
+    conv = arc2rad if xyinas else 1.0  # Is xymap in arcseconds or radions?
+    (x, y) = xymap
+    x, y = rot_trans_grid(x, y, geoparams[0], geoparams[1], geoparams[2])  # 0.008 sec per call
+    x, y = get_ell_rads(x, y, geoparams[3], geoparams[4])                # 0.001 sec per call
     theta = np.sqrt(x**2 + y**2)*arc2rad
-    theta_min = rads[0]*2.0 # Maybe risky, but this is defined so that it is sorted.
-    bi=(theta < theta_min);   theta[bi]=theta_min
-    mymap  = np.interp(theta,rads,profile)
-    
+    theta_min = rads[0]*2.0  # Maybe risky, but this is defined so that it is sorted.
+    bi = (theta < theta_min)
+    theta[bi] = theta_min
+    mymap = np.interp(theta, rads, profile)
+
     if axis == 'x':
-        xell = (x/(geoparams[3]*myscale))*arc2rad # x is initially presented in arcseconds
-        modmap = geoparams[5]*(xell**2)**(geoparams[6]) # Consistent with model creation??? (26 July 2017)
+        xell = (x/(geoparams[3]*myscale))*conv  # x is initially presented in arcseconds
+        modmap = geoparams[5]*(xell**2)**(geoparams[6])  # Consistent with model creation??? (26 July 2017)
     if axis == 'y':
-        yell = (y/(geoparams[4]*myscale))*arc2rad # x is initially presented in arcseconds
-        modmap = geoparams[5]*(yell**2)**(geoparams[6]) # Consistent with model creation??? (26 July 2017)
+        yell = (y/(geoparams[4]*myscale))*conv  # x is initially presented in arcseconds
+        modmap = geoparams[5]*(yell**2)**(geoparams[6])  # Consistent with model creation??? (26 July 2017)
     if axis == 'z':
         modmap = geoparams[5]
 
     if modmap != 1:
         mymap *= modmap   # Very important to be precise here.
     if geoparams[7] > 0:
-        angmap = np.arctan2(y,x)
+        angmap = np.arctan2(y, x)
         bi = (abs(angmap) > geoparams[7]/2.0)
         mymap[bi] = 0.0
 
     return mymap
 
-def rot_trans_grid(x,y,xs,ys,rot_rad):
-    """   
+
+def rot_trans_grid(x: NDArray[Floating],
+                   y: NDArray[Floating],
+                   xs: Floating,
+                   ys: Floating,
+                   rot_rad: Floating
+                   ) -> Tuple[NDArray[Floating], NDArray[Floating]]:
+    """
     Shift and rotate coordinates
 
-    :param x: coordinate along major axis (a) 
-    :type x: class:`numpy.ndarray`
-    :param y: coordinate along minor axis (b) 
-    :type y: class:`numpy.ndarray`
-    :param xs: translation along x-axis
-    :type xs: float
-    :param ys: translation along y-axis
-    :type ys: float
-    :param rot_rad: rotation angle, in radians
-    :type rot_rad: float
+    Parameters
+    ----------
+    x : NDArray[Floating]
+        coordinate along default x-axis (major axis)
+    y : NDArray[Floating]
+        coordinate along default y-axis (minor axis)
+    xs : Floating
+       translation along x-axis
+    ys : Floating
+       translation along y-axis
+    rot_rad : Floating
+        rotation angle, in radians
 
+    Returns
+    -------
+    xnew : NDArray[Floating]
+        coordinate along major axis (a)
+    ynew : NDArray[Floating]
+        coordinate along minor axis (b)
     """
 
     xnew = (x - xs)*np.cos(rot_rad) + (y - ys)*np.sin(rot_rad)
     ynew = (y - ys)*np.cos(rot_rad) - (x - xs)*np.sin(rot_rad)
 
-    return xnew,ynew
+    return xnew, ynew
 
-def get_ell_rads(x,y,ella,ellb):
-    """   
+
+def get_ell_rads(x: NDArray[Floating],
+                 y: NDArray[Floating],
+                 ella: Floating,
+                 ellb: Floating
+                 ) -> Tuple[NDArray[Floating], NDArray[Floating]]:
+    """
     Get ellipsoidal radii from x,y standard
 
-    :param x: coordinate along major axis (a) 
-    :type x: class:`numpy.ndarray`
-    :param y: coordinate along minor axis (b) 
-    :type y: class:`numpy.ndarray`
-    :param ella: scaling along major axis (should stay 1)
-    :type ella: float
-    :param ellb: scaling along minor axis
-    :type ella: float
+    Parameters
+    ----------
+    x : NDArray[Floating]
+        coordinates along major axis (a)
+    y: NDArray[Floating]
+        coordinates along minor axis (b)
+    ella: Floating
+        scaling along major axis (should stay 1)
+    ellb: Floating
+        scaling along minor axis
 
+    Returns
+    -------
+    newx : NDArray[Floating]
+        New coordinates along major axis (a)
+    newy : NDArray[Floating]
+        New coordinates along minor axis (b)
     """
- 
-    xnew = x/ella ; ynew = y/ellb
+
+    xnew = x/ella
+    ynew = y/ellb
 
     return xnew, ynew
 
-def get_freqarr_2d(nx, ny, psx, psy):
+
+def get_freqarr_2d(nx: int,
+                   ny: int,
+                   psx: Floating,
+                   psy: Floating
+                   ) -> Tuple[NDArray[Floating], Floating, Floating]:
     """
        Compute frequency array for 2D FFT transform
 
        Parameters
        ----------
-       nx : integer
+       nx : int
             number of samples in the x direction
-       ny : integer
+       ny : int
             number of samples in the y direction
-       psx: integer
+       psx: Floating
             map pixel size in the x direction
-       psy: integer
+       psy: Floating
             map pixel size in the y direction
 
        Returns
        -------
-       k : float 2D numpy array
-           frequency vector
+       k : NDArray[Floating]
+           Frequency vector: 2D array, of k_r = sqrt(k_x**2 + k_y**2)
+       dkx : Floating
+           Stepsize of k_x (k along the x-axis).
+       dky : Floating
+           Stepsize of k_y (k_along the y-axis).
     """
-    kx =  np.outer(np.fft.fftfreq(nx),np.zeros(ny).T+1.0)/psx
-    ky =  np.outer(np.zeros(nx).T+1.0,np.fft.fftfreq(ny))/psy
+
+    kx = np.outer(np.fft.fftfreq(nx), np.zeros(ny).T+1.0)/psx
+    ky = np.outer(np.zeros(nx).T+1.0, np.fft.fftfreq(ny))/psy
     dkx = kx[1:][0]-kx[0:-1][0]
     dky = ky[0][1:]-ky[0][0:-1]
-    k  =  np.sqrt(kx*kx + ky*ky)
-    #print('dkx, dky:', dkx[0], dky[0])
-    return k, dkx[0], dky[0]
+    k = np.sqrt(kx*kx + ky*ky)
 
+    return k, dkx[0], dky[0]

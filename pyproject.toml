@@ -3,9 +3,10 @@ requires = ["setuptools>=42.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
-addopts = "--cov=gcfluct"
+addopts = "--cov=gcfluct --nbval"
 testpaths = [
     "tests",
+    "tutorials"
 ]
 
 [tool.mypy]

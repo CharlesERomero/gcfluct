@@ -9,9 +9,11 @@ import gcfluct.utils.utility_functions as uf
 
 ### For typing:
 from numpy.typing import NDArray, ArrayLike
-from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union, TypeAlias
 #from astropy.units import Quantity
 from astropy.units import UnitBase
+
+Floating: TypeAlias = Union[float, np.float32, np.float64]
 
 class PSfromImages:
     """
@@ -23,18 +25,18 @@ class PSfromImages:
     ----------
     center : ArrayLike
         A two-element iterable indicating the central pixel along respective axes.
-    img : NDArray[np.floating]
+    img : NDArray[Floating]
         The image upon which power spectra will be calculated.
-    img2 : Optional[NDArray[np.floating]]
+    img2 : Optional[NDArray[Floating]]
         None if not set; otherwise a user-supplied image of the same astrometry to be used to
         calculate cross-spectra.
-    intrinsic_mask : NDArray[np.floating]
+    intrinsic_mask : NDArray[Floating]
         Mask, independent of bin (region), which mask any "contaminating" pixels.
-    mask : NDArray[np.floating]
+    mask : NDArray[Floating]
         Total mask, for a given bin (region)
-    mask_by_bin : NDArray[Union[np.floating,int]]
+    mask_by_bin : NDArray[Union[Floating,int]]
         Mask which defines bins by the integer values of the pixels.
-    pixsize : np.floating
+    pixsize : Floating
         The value of the pixel size in the appropriate units.
     pixunits : UnitBase
         Units of the pixel size, as an astropy unit. Recommended to be set by user. Default is u.arcsec.
@@ -54,20 +56,20 @@ class PSfromImages:
     """
     
     def __init__(self,
-                 img: NDArray[np.floating],
-                 pixsize: np.floating = 1.0,
+                 img: NDArray[Floating],
+                 pixsize: Floating = 1.0,
                  pixunits: Optional[UnitBase] = None,
                  center: Optional[ArrayLike] = None,
-                 intrinsic_mask: Optional[NDArray[np.floating]] = None,
-                 img2: Optional[NDArray[np.floating]] = None):
+                 intrinsic_mask: Optional[NDArray[Floating]] = None,
+                 img2: Optional[NDArray[Floating]] = None):
         """
 
 
         Parameters
         ----------
-        img : NDArray[np.floating]
+        img : NDArray[Floating]
            The image upon which power spectra will be calculated.
-        pixsize : np.floating
+        pixsize : Floating
            The value of the pixel size in the appropriate units.
         pixunits : Optional[UnitBase]
            It is highly recommend to explicitly set this. Default None type becomes u.arcsec;
@@ -75,11 +77,11 @@ class PSfromImages:
         center : Optional[ArrayLike]
            A two-element array-like object with center in pixel units, along axis 0 and axis 1,
            respectively.
-        intrinsic_mask : Optional[NDArray[np.floating]]
+        intrinsic_mask : Optional[NDArray[Floating]]
            A mask that covers pixels that should be omitted (regardless of binning up pixels,
            i.e. calculating spectra in different bins/portions of the map). Should be binary:
            0 means pixels to be omitted; must match shape of img.
-        img2 : Optional[NDArray[np.floating]]
+        img2 : Optional[NDArray[Floating]]
            A counterpart image, may be used for calculating cross-spectra.
         """
 
@@ -105,19 +107,20 @@ class PSfromImages:
         self.set_center(center=center)
         self._set_xyrmat()
         self.set_wave_numbers()
-    
+
+
     def update_img(self,
-                   img: NDArray[np.floating],
-                   img2: Optional[NDArray[np.floating]] = None):
+                   img: NDArray[Floating],
+                   img2: Optional[NDArray[Floating]] = None):
         """
         If astrometry remains the same, user is permitted to update images (perhaps they are running
         over several realizations).
         
         Parameters
         ----------
-        img : NDArray[np.floating]
+        img : NDArray[Floating]
            The image upon which power spectra will be calculated.
-        img2 : Optional[NDArray[np.floating]]
+        img2 : Optional[NDArray[Floating]]
            A counterpart image, may be used for calculating cross-spectra.
         """
 
@@ -150,11 +153,11 @@ class PSfromImages:
         self.rmat=np.sqrt( (self._xmat-self.center[0])**2+(self._ymat-self.center[1])**2)*self.pixsize
 
     def set_intrinsic_mask(self,
-                           intrinsic_mask: Optional[NDArray[np.floating]]):
+                           intrinsic_mask: Optional[NDArray[Floating]]):
         """
         Parameters
         ----------
-        intrinsic_mask : Optional[NDArray[np.floating]]
+        intrinsic_mask : Optional[NDArray[Floating]]
            A mask that covers pixels that should be omitted (regardless of binning up pixels,
            i.e. calculating spectra in different bins/portions of the map). Should be binary:
            0 means pixels to be omitted; must match shape of img.
@@ -166,7 +169,7 @@ class PSfromImages:
         """
         Parameters
         ----------
-        mask_by_bin : Optional[NDArray[np.floating]]
+        mask_by_bin : NDArray[Floating]
            A mask that labels pixels with integers corresponding to their bin number.
            (Bins should start at 1; 0 values are omitted)
         """
@@ -176,7 +179,7 @@ class PSfromImages:
         """
         Parameters
         ----------
-        annular_edges NDArray[np.floating] | Sequence[float]
+        annular_edges NDArray[Floating] | Sequence[float]
            An array-like set of annular edges, in increasing order, defined by the radius.
         """
 
@@ -185,37 +188,37 @@ class PSfromImages:
         for rin,rout in zip(annular_edges[:-1],annular_edges[1:]):
             rcout += 1                    # Keep track of ring count
             imcopy = np.zeros(self._imsz)  # Make a copy of image
-            imcopy[(rmat >= rin)]  = 1  # 
-            imcopy[(rmat >= rout)] = 0  #
+            imcopy[(self.rmat >= rin)] = 1  # 
+            imcopy[(self.rmat >= rout)] = 0  #
             mask_by_bin += imcopy * rcout
         self.mask_by_bin = mask_by_bin
 
     def set_wave_numbers(self,
-                        kmin: Optional[np.floating] = None,
-                        kmax: Optional[np.floating] = None,
+                        kmin: Optional[Floating] = None,
+                        kmax: Optional[Floating] = None,
                         nk_node: Optional[int] = None,
-                        k_node: Optional[NDArray[np.floating]] = None,
-                        pad_max: np.floating=3.0,
-                        pad_min: np.floating=2.0):
+                        k_node: Optional[NDArray[Floating]] = None,
+                        pad_max: Floating=3.0,
+                        pad_min: Floating=2.0):
         """
         Parameters
         ----------
-        kmin : Optional[np.floating]
+        kmin : Optional[Floating]
             The minimum wavenumber (in units of inverse pixunits) at which to calculate the
             power spectrum via the Mexican hat filter in Arevalo et al. (2012).
-        kmax : Optional[np.floating]
+        kmax : Optional[Floating]
             The maximum wavenumber (in units of inverse pixunits) at which to calculate the
             power spectrum via the Mexican hat filter in Arevalo et al. (2012).
         nk_node : Optional[int]
             The number of nodes to use when calculating the power spectrum via the Mexican hat
             filter in Arevalo et al. (2012). Defaults to the times 2 divides into (kmax/kmin) --
             rounded up.
-        k_node : Optional[NDArray[np.floating]]
+        k_node : Optional[NDArray[Floating]]
             A user-specified array of wavenumbers (nodes) at which to calculate the power
             spectrum via the Mexican hat filter in Arevalo et al. (2012).
-        pad_min : np.floating
+        pad_min : Floating
             As compared to 1/(npix*pixsize), the minimum wavenumber would be pad_min/(npix*pixsize).
-        pad_max : np.floating
+        pad_max : Floating
             As compared to 1/(pixsize), the maximum wavenumber would be 1/(pad_max*pixsize).
         """
         k, dkx, dky = uf.get_freqarr_2d(self._imsz[0],self._imsz[1],
@@ -244,9 +247,9 @@ class PSfromImages:
         
         Parameters
         ----------
-        pad_min : np.floating
+        pad_min : Floating
             As compared to 1/(npix*pixsize), the minimum wavenumber would be pad_min/(npix*pixsize).
-        pad_max : np.floating
+        pad_max : Floating
             As compared to 1/(pixsize), the maximum wavenumber would be 1/(pad_max*pixsize).
         """
         kmax = 1.0/(pad_max*self.pixsize)
@@ -281,7 +284,7 @@ class PSfromImages:
         fftMag = np.abs(imgfft*imgfft2)
         imgps = fftMag / self.img.size if corr_n else fftMag
         np2 = int(np.round(np.log(self._imsz[0])/np.log(2))*2.0) # No padding like for A12
-        kb,pb,pe,pcnt = uf.bin_log2Ds(self._k_mat,imgps,nbins=np2,witherr=True,withcnt=True)
+        kb,pb,pe,pcnt = uf.bin_log2Ds(self._k_mat,imgps,nbins=np2*2,witherr=True,withcnt=True)
         self.fft_kb = kb
         self.fft_pk = pb
         
@@ -306,7 +309,7 @@ class PSfromImages:
             3, 2, and 1.)
         """
         
-        n_bins = 1 if self.mask_by_bin is None else self.mask_by_bin.max() 
+        n_bins = 1 if self.mask_by_bin is None else int(self.mask_by_bin.max())
         self.a12_pk = np.zeros(self.a12_kn.shape+(n_bins,))
         #mask =  np.zeros(self._imsz)
 
@@ -364,13 +367,13 @@ class PSfromImages:
 
         Parameters
         ----------
-        eps : np.floating
+        eps : Floating
              epsilon; relates to scaling/separation of the two sigmas. Arevalo+ (2012) liked the value 
              of 1e-3, though one can change this. We're happy to keep with 1e-3.
 
         Returns
         -------
-        p_kr : np.floating
+        p_kr : Floating
             The power at the specified k_r
         """
 
@@ -411,28 +414,28 @@ class ImagesFromPS:
     ----------
     n_pix : int
         The number of pixels on an image side. Image will be square.
-    pixsize : np.floating
+    pixsize : Floating
         Value of the pixel size. Units are at the user discretion, but must match the (inverse) units of
         the wavenumber values (kc, kdist, and k_arr).
     pixunits : UnitBase
         Units of the pixel size, as an astropy unit. Recommended to be set by user. Default is u.arcsec.
-    slope : np.floating
+    slope : Floating
         The slope of the underlying power-law in the spectrum. Respects the convention P(k) = P_0 k**slope.
-    kc : np.floating
+    kc : Floating
         The wavenumber for the spectral cutoff (towards low wavenumbers). Value should correspond to inverse
         of units corresponding to pixel size. If pixsize is taken as a length (e.g. kpc), then kc should be
         reported in kpc**(-1).
-    p0 : np.floating
+    p0 : Floating
         The spectral normalization.
-    kdis : np.floating
+    kdis : Floating
         The wavenumber corresponding the dissipation scale. (Again, respective to units of pixsize).
-    eta_c : np.floating
+    eta_c : Floating
         The rate of cutoff. Default is 4.0, as adopted in Khatri & Gaspri (2016).
-    eta_d : np.floating
+    eta_d : Floating
         The rate of dissipation. Default is 1.5, as adopted in Khatri & Gaspri (2016).
-    seed : Union[np.floating,int]
+    seed : Union[Floating,int]
         A seed for the random number generator, if desired.
-    k_arr : np.floating
+    k_arr : Floating
         Positive wavenumbers at which the power spectrum is modeled.
 
     Methods
@@ -457,16 +460,16 @@ class ImagesFromPS:
 
     def __init__(self,
                  n_pix: int = 1024,
-                 pixsize: np.floating = 1.0,
+                 pixsize: Floating = 1.0,
                  pixunits : Optional[UnitBase] = None,
-                 slope: np.floating = 0.0,
-                 kc: np.floating = 1e-3,
-                 p0: np.floating = 1e0,
-                 kdis: np.floating = 1e3,
-                 eta_c: np.floating = 4.0,
-                 eta_d: np.floating = 1.5,
-                 minfactor: np.floating = 1e2,
-                 seed: Optional[Union[np.floating,int]] = None,
+                 slope: Floating = 0.0,
+                 kc: Floating = 1e-3,
+                 p0: Floating = 1e0,
+                 kdis: Floating = 1e3,
+                 eta_c: Floating = 4.0,
+                 eta_d: Floating = 1.5,
+                 minfactor: Floating = 1e2,
+                 seed: Optional[Union[Floating,int]] = None,
                  no_warn: bool = False):
         """
         All wavenumber values (kc, kdis, k) should match those for the inverse of the units of pixsize.
@@ -477,29 +480,29 @@ class ImagesFromPS:
         ----------
         n_pix : int
             The number of pixels on an image side. Image will be square.
-        pixsize : np.floating
+        pixsize : Floating
             Value of the pixel size.
         pixunits : Optional[UnitBase]
            It is highly recommend to explicitly set this. Default None type becomes u.arcsec;
            user is warned.
-        slope : np.floating
+        slope : Floating
             The slope of the underlying power-law in the spectrum. Respects the convention P(k) = P_0 k**slope.
-        kc : np.floating
+        kc : Floating
             The wavenumber for the spectral cutoff (towards low wavenumbers). Value should correspond to inverse
             of units corresponding to pixel size. If pixsize is taken as a length (e.g. kpc), then kc should be
             reported in kpc**(-1).
-        p0 : np.floating
+        p0 : Floating
             The spectral normalization.
-        kdis : np.floating
+        kdis : Floating
             The wavenumber corresponding the dissipation scale. (Again, respective to units of pixsize).
-        eta_c : np.floating
+        eta_c : Floating
             The rate of cutoff. Default is 4.0, as adopted in Khatri & Gaspri (2016).
-        eta_d : np.floating
+        eta_d : Floating
             The rate of dissipation. Default is 1.5, as adopted in Khatri & Gaspri (2016).
-        minfactor : np.floating
+        minfactor : Floating
             If wavenumber array includes zero values, they will be reset to the minimum non-zero wavenumber
             divided by this value.
-        seed : Optional[Union[np.floating,int]]
+        seed : Optional[Union[Floating,int]]
             A seed for the random number generator, if desired.
         no_warn : bool
             Ignore warnings. Default is False.
@@ -517,12 +520,12 @@ class ImagesFromPS:
         self._rng = np.random.default_rng(seed=seed)
         
     def set_ps_parameters(self,
-                 slope: np.floating = 0.0,
-                 kc: np.floating = 1e-3,
-                 p0: np.floating = 1e0,
-                 kdis: np.floating = 1e3,
-                 eta_c: np.floating = 4.0,
-                 eta_d: np.floating = 1.5):
+                 slope: Floating = 0.0,
+                 kc: Floating = 1e-3,
+                 p0: Floating = 1e0,
+                 kdis: Floating = 1e3,
+                 eta_c: Floating = 4.0,
+                 eta_d: Floating = 1.5):
         """
         All wavenumber values (kc, kdis, k) should match those for the inverse of the units of pixsize.
         For example, if pixsize=1.0 means that each pixel is 1 kpc on a side, then the corresponding k-values
@@ -530,19 +533,19 @@ class ImagesFromPS:
 
         Parameters
         ----------
-        slope : np.floating
+        slope : Floating
             The slope of the underlying power-law in the spectrum. Respects the convention P(k) = P_0 k**slope.
-        kc : np.floating
+        kc : Floating
             The wavenumber for the spectral cutoff (towards low wavenumbers). Value should correspond to inverse
             of units corresponding to pixel size. If pixsize is taken as a length (e.g. kpc), then kc should be
             reported in kpc**(-1).
-        p0 : np.floating
+        p0 : Floating
             The spectral normalization.
-        kdis : np.floating
+        kdis : Floating
             The wavenumber corresponding the dissipation scale. (Again, respective to units of pixsize).
-        eta_c : np.floating
+        eta_c : Floating
             The rate of cutoff. Default is 4.0, as adopted in Khatri & Gaspri (2016).
-        eta_d : np.floating
+        eta_d : Floating
             The rate of dissipation. Default is 1.5, as adopted in Khatri & Gaspri (2016).      
         """
         self.slope=slope   # Power-law slope (k**slope)
@@ -552,12 +555,12 @@ class ImagesFromPS:
         self.eta_c = eta_c # Cutoff exponent
         self.eta_d = eta_d # Dissipation exponent
         
-    def set_minfactor(self, minfactor: np.floating = 1e2):
+    def set_minfactor(self, minfactor: Floating = 1e2):
         """
 
         Parameters
         ----------
-        minfactor : np.floating
+        minfactor : Floating
             If wavenumber array includes zero values, they will be reset to the minimum non-zero wavenumber
             divided by this value.     
         """
@@ -566,7 +569,7 @@ class ImagesFromPS:
         
     def set_image_size(self,
                        n_pix: int = 1024,
-                       pixsize: np.floating = 1.0,
+                       pixsize: Floating = 1.0,
                        pixunits: Optional[UnitBase] = None,
                        center: Optional[ArrayLike] = None,
                        no_warn: bool = False):
@@ -576,7 +579,7 @@ class ImagesFromPS:
         ----------
         n_pix : int
             The number of pixels on an image side. Image will be square.
-        pixsize : np.floating
+        pixsize : Floating
             Value of the pixel size.      
         pixunits : Optional[UnitBase]
            It is highly recommend to explicitly set this. Default None type becomes u.arcsec;
@@ -641,18 +644,18 @@ class ImagesFromPS:
         self._ymat=np.repeat([yvec],self._imsz[0],axis=0)
         self.rmat=np.sqrt( (self._xmat-self.center[0])**2+(self._ymat-self.center[1])**2)*self.pixsize
         
-    def get_parameterized_ps(self,k_in: Optional[NDArray[np.floating]] = None):
+    def get_parameterized_ps(self,k_in: Optional[NDArray[Floating]] = None):
         """
 
         Parameters
         ----------
-        k_in : Optional[NDArray[np.floating]]
+        k_in : Optional[NDArray[Floating]]
             If provided, an array of wavenumbers at which to calculate the power spectral values. Otherwise adopts
             the attribute k_arr.
 
         Returns
         -------
-        ps : NDArray[np.floating]
+        ps : NDArray[Floating]
         """
 
         k_arr = self.k_arr if k_in is None else k_in
@@ -666,17 +669,17 @@ class ImagesFromPS:
         return np.nan_to_num(ps)
 
     def get_logspaced_k(self,
-                        kmin: Optional[np.floating] = None,
-                        kmax: Optional[np.floating] = None,
+                        kmin: Optional[Floating] = None,
+                        kmax: Optional[Floating] = None,
                         n_pts: int = 500):
         """
         Computers and returns an array of wavenumbers based on the inputs.
         
         Parameters
         ----------
-        kmin : Optional[np.floating]
+        kmin : Optional[Floating]
             The minimum wavenumber (in units of inverse pixunits). Defaults to 1/(n_pix * pixsize)
-        kmax : Optional[np.floating]
+        kmax : Optional[Floating]
             The maximum wavenumber (in units of inverse pixunits). Defaults to 1/(pixsize)
         n_pts: int
             The number of elements when making the array of wavenumbers.
@@ -694,33 +697,33 @@ class ImagesFromPS:
 
         Parameters
         ----------
-        seed : Union[np.floating,int]
+        seed : Union[Floating,int]
             A seed for a random number generator. Any value will do.
         """
         
         self._rng = np.random.default_rng(seed=seed)
     
     def generate_realization(self,
-                             k_in: Optional[NDArray[np.floating]] = None,
-                             ps_in: Optional[NDArray[np.floating]] = None,
-                             seed: Optional[Union[np.floating,int]] = None):
+                             k_in: Optional[NDArray[Floating]] = None,
+                             ps_in: Optional[NDArray[Floating]] = None,
+                             seed: Optional[Union[Floating,int]] = None):
         """
         Generate an image realization based on either the internally set power spectrum, or if user wants to
         supply a completely independently calculated one, this can be done too.
 
         Parameters
         ----------
-        k_in : Optional[NDArray[np.floating]]
+        k_in : Optional[NDArray[Floating]]
             An array of wavenumbers. This should extend beyond the range of the (non-zero) wavenumbers as
             found in the FFT of the image. (Performs interpolation, not extrapolation).
-        ps_in : Optional[NDArray[np.floating]]
+        ps_in : Optional[NDArray[Floating]]
             A corresponding array of the power spectral values.
-        seed : Optional[Union[np.floating,int]]
+        seed : Optional[Union[Floating,int]]
             If wanting to set the seed, the user can.
 
         Returns
         -------
-        img : NDArray[np.floating]
+        img : NDArray[Floating]
             A realization of the input power spectrum.
         """
 
@@ -751,9 +754,9 @@ class MultiGaussBeam:
 
     Attributes
     ----------
-    norms : NDArray[np.floating]
+    norms : NDArray[Floating]
         Normalization (amplitude) of the compoment Gaussians
-    widths : NDArray[np.floating]
+    widths : NDArray[Floating]
         Widths (Gaussian sigmas) of the components (with corresponding normalizations)
     
 
@@ -768,36 +771,36 @@ class MultiGaussBeam:
     """
     
     def __init__(self,
-                 norms: NDArray[np.float64] | Sequence[float],
-                 widths: NDArray[np.floating] | Sequence[float]):
+                 norms: NDArray[Floating] | Sequence[float],
+                 widths: NDArray[Floating] | Sequence[float]):
         """
         Define a beam (or point-spread function, PSF) as multiple Gaussians via a list of
         normalizations (height) and widths (Gaussian sigmas).
 
         Parameters
         ----------
-        norms : NDArray[np.floating] | Sequence[float]
+        norms : NDArray[Floating] | Sequence[float]
             array-like collection of Gaussian normalizations.
             Internally, the sum of norms will be normalized to equal unity
-        widths : NDArray[np.floating] | Sequence[float]
+        widths : NDArray[Floating] | Sequence[float]
             array-like collection of Gaussian standard deviations.
         """
         self.norms = np.array(norms,dtype=float)
         self.norms /= np.sum(self.norms) # Impose unitary normalization
         self.widths = np.array(widths,dtype=float)
 
-    def calc_ft_at_k(self,k: NDArray[np.floating]):
+    def calc_ft_at_k(self,k: NDArray[Floating]):
         """
         Computes the Fourier transform of a multi-Gaussian Point Spread Function
 
         Parameters
         ----------
-        k : NDArray[np.floating]
+        k : NDArray[Floating]
             Array of wavenumber points at which to compute the power spectrum of the point spread function (PSF).
 
         Returns
         -------
-        ft : NDArray[np.floating]
+        ft : NDArray[Floating]
             The Fourier transform of the point spread function (PSF) at the specified wavenumbers (k).
         """
         
@@ -808,25 +811,25 @@ class MultiGaussBeam:
         
         return ft
 
-    def calc_ps_at_k(self,k: NDArray[np.floating]):
+    def calc_ps_at_k(self,k: NDArray[Floating]):
         """
         Computes the power spectrum for a multi-Gaussian Point Spread Function
 
         Parameters
         ----------
-        k : NDArray[np.floating]
+        k : NDArray[Floating]
             Array of wavenumber points at which to compute the power spectrum of the point spread function (PSF).
 
         Returns
         -------
-        psf_ps : NDArray[np.floating]
+        psf_ps : NDArray[Floating]
             The power spectrum of the point spread function (PSF) at the specified wavenumbers (k).
         """
         psf_pt = self.calc_ft_at_k(k)
 
         return psf_ft**2
     
-    def _get_multi_gauss_terms(self,karr: NDArray[np.floating],alpha: np.floating):
+    def _get_multi_gauss_terms(self,karr: NDArray[Floating],alpha: Floating):
         """
 
         This corrects for the bias noted in Romero+ 2023, Romero 2024.
@@ -835,10 +838,10 @@ class MultiGaussBeam:
 
         Parameters
         ----------
-        karr : NDArray[np.floating]
+        karr : NDArray[Floating]
             A one-dimensional array of wavenumbers (e.g. inverse arcseconds). The units of karr must be
             the inverse of the units used for the sigma(s) describing the N-Gaussian (below).
-        alpha : np.floating 
+        alpha : Floating 
              The spectral index assumed. [Convention: P(k) = P0 k**(-alpha)]
         """
     
@@ -870,8 +873,8 @@ class MultiGaussBeam:
         return corrs
 
     def get_multi_gauss_bias(self,
-                             karr: NDArray[np.floating],
-                             alpha: np.floating,
+                             karr: NDArray[Floating],
+                             alpha: Floating,
                              ign_psf:bool = False,
                              pb_only: bool = False):
 
@@ -887,9 +890,9 @@ class MultiGaussBeam:
 
         Parameters
         ----------
-        karr : NDArray[np.floating]
+        karr : NDArray[Floating]
             The array of k (wavenumber) values at which to calculate the total bias
-        alpha : np.floating 
+        alpha : Floating 
             The assumed spectral index (convention given above)
         ign_psf : bool
             As mentioned above, allows you to ignore the PSF power spectrum term with respect
@@ -901,7 +904,7 @@ class MultiGaussBeam:
 
         Returns
         -------
-        bias : NDArray[np.floating]
+        bias : NDArray[Floating]
             The bias due to the PSF; the precise bias being quantified depends on boolean option
             inputs.
         """
