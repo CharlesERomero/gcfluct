@@ -150,7 +150,8 @@ class PSfromImages:
         yvec=np.arange(self._imsz[1]) - self.center[1]
         self._xmat=np.repeat([xvec],self._imsz[1],axis=0).transpose()
         self._ymat=np.repeat([yvec],self._imsz[0],axis=0)
-        self.rmat=np.sqrt( (self._xmat-self.center[0])**2+(self._ymat-self.center[1])**2)*self.pixsize
+        #self.rmat=np.sqrt( (self._xmat-self.center[0])**2+(self._ymat-self.center[1])**2)*self.pixsize
+        self.rmat=np.sqrt( (self._xmat)**2+(self._ymat)**2)*self.pixsize
 
     def set_intrinsic_mask(self,
                            intrinsic_mask: Optional[NDArray[Floating]]):
@@ -406,6 +407,10 @@ class PSfromImages:
         gamf   = np.pi # Can change for different dimensionality. But this function is specifically for 2D
         p_kr   = s2_kr /(eps**2 * gamf * self._k_r**2) # this is intrinsic PS(k)
 
+        if np.isnan(p_kr):
+            print(p_kr, s2_kr, eps, gamf, self._k_r)
+            import pdb; pdb.set_trace()
+        
         return p_kr
 
 class ImagesFromPS:
